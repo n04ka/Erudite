@@ -3,7 +3,7 @@ from scenes import *
 
 
 settings = {"resolution" : "400x300",
-            "fullscreen" : False
+            "fullscreen" : True
             }
 
 tk.set_appearance_mode("system")
@@ -15,6 +15,7 @@ SceneSwitcher.window = app
 if settings["fullscreen"]:
     app.state("zoomed")
 else:
+    app.state("normal")
     app.geometry(settings["resolution"])
 
 
@@ -137,8 +138,8 @@ def draw_game_menu():
 
     main_frame.place(relx=0.5, rely=0.5, anchor="center")
     label.pack(padx=8, pady=8)
-    #butt_back.pack(side="bottom", anchor="sw", padx=8, pady=8)
-    #butt_start.pack(after=butt_back, side="left", anchor="se", padx=8, pady=8)
+    butt_back.pack(side="bottom", anchor="sw", padx=8, pady=8)
+    butt_start.pack(after=butt_back, side="left", anchor="se", padx=8, pady=8)
     slot_frame.pack(side="left", padx=8, pady=8)
     label_slot.pack(padx=8, pady=8)
     butt_add.pack(padx=8, pady=8)
