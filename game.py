@@ -11,12 +11,26 @@ tk.set_default_color_theme("green")
 
 app = tk.CTk()
 app.title("Эрудит")
+
+
+def center_window():
+    window_width, window_height = map(int, settings["resolution"].split("x"))
+    screen_width = app.winfo_screenwidth()
+    screen_height = app.winfo_screenheight()
+
+    x_cordinate = int((screen_width/2) - (window_width/2))
+    y_cordinate = int((screen_height/2) - (window_height/2))
+
+    app.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
+    app.resizable(False, False)
+
+
 SceneSwitcher.window = app # type: ignore
 if settings["fullscreen"]:
     app.state("zoomed")
 else:
     app.state("normal")
-    app.geometry(settings["resolution"])
+    center_window()
 
 
 def draw_main_menu():
@@ -39,16 +53,19 @@ def draw_settings():
 
     def res_change(res: str):
         settings["resolution"] = res
-        app.geometry(res)
+        center_window()
 
     def toggle_fullscreen():
+        nonlocal combo_res
         if settings["fullscreen"]:
             settings["fullscreen"] = False
             app.state("normal")
             app.geometry(settings["resolution"])
+            combo_res._state = "normal"
         else:
             settings["fullscreen"] = True
             app.state("zoomed")
+            combo_res._state = "disabled"
         
 
     main_frame = tk.CTkFrame(app)
@@ -61,7 +78,7 @@ def draw_settings():
 
     #resolution frame
     label_res = tk.CTkLabel(resolution_frame, text="Разрешение")
-    available_res = ["400x300", "1000x500", "1920x1080"]
+    available_res = ["700x700", "1920x1080"]
     combo_res = tk.CTkComboBox(resolution_frame, height=24, values=available_res, state="readonly", command=res_change)
     combo_res.set(settings["resolution"])
     checkbox_fullscreen = tk.CTkCheckBox(resolution_frame, text="Полноэкранный", command=toggle_fullscreen)
