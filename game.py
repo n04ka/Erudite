@@ -2,8 +2,8 @@ import customtkinter as tk
 from scenes import *
 
 
-settings = {"resolution" : "400x300",
-            "fullscreen" : True
+settings = {"resolution" : "700x700",
+            "fullscreen" : False
             }
 
 tk.set_appearance_mode("system")
@@ -11,7 +11,7 @@ tk.set_default_color_theme("green")
 
 app = tk.CTk()
 app.title("Эрудит")
-SceneSwitcher.window = app
+SceneSwitcher.window = app # type: ignore
 if settings["fullscreen"]:
     app.state("zoomed")
 else:
@@ -23,7 +23,7 @@ def draw_main_menu():
     main_frame = tk.CTkFrame(app)
     label = tk.CTkLabel(main_frame, text="Главное меню")
     butt_resume = tk.CTkButton(main_frame, height=40, text="Продолжить", state="disabled")
-    butt_start = tk.CTkButton(main_frame, height=40, text="Начать")
+    butt_start = tk.CTkButton(main_frame, height=40, text="Начать", command=lambda: SceneSwitcher.switch(game_menu))
     butt_set = tk.CTkButton(main_frame, height=40, text="Настройки", command=lambda: SceneSwitcher.switch(settings_menu))
     butt_exit = tk.CTkButton(main_frame, height=40, text="Выйти", command=exit, hover_color="red")
 
@@ -97,8 +97,9 @@ def draw_game_menu():
     label = tk.CTkLabel(main_frame, text="Создание игры")
     slot_frame = tk.CTkFrame(main_frame)
     set_frame = tk.CTkFrame(main_frame)
-    butt_back = tk.CTkButton(main_frame, text="Назад", command=lambda: SceneSwitcher.switch(main_menu))
-    butt_start = tk.CTkButton(main_frame, text="Начать")
+    buttons_frame = tk.CTkFrame(main_frame)
+    butt_back = tk.CTkButton(buttons_frame, text="Назад", hover_color="red", command=lambda: SceneSwitcher.switch(main_menu))
+    butt_start = tk.CTkButton(buttons_frame, text="Начать", command=lambda: SceneSwitcher.switch(game_scene))
 
     #slot frame
     label_slot = tk.CTkLabel(slot_frame, text="Игроки")
@@ -118,7 +119,7 @@ def draw_game_menu():
             butt_add._state = "normal"   
 
         butt_icon = tk.CTkButton(slot, width=64, height=64, text="")
-        label_name = tk.CTkLabel(slot, text="Новый игрок " + str(players))
+        label_name = tk.CTkLabel(slot, width=300, text="Новый игрок " + str(players), anchor="w", justify="left")
         butt_del = tk.CTkButton(slot, width=16, height=16, text="X", hover_color="red", command=delete_slot)
         
         slot.pack(before=butt_add, padx=8, pady=8)
@@ -135,27 +136,41 @@ def draw_game_menu():
     #set frame
     label_set = tk.CTkLabel(set_frame, text="Правила")
 
-
     main_frame.place(relx=0.5, rely=0.5, anchor="center")
     label.pack(padx=8, pady=8)
-    butt_back.pack(side="bottom", anchor="sw", padx=8, pady=8)
-    butt_start.pack(after=butt_back, side="left", anchor="se", padx=8, pady=8)
     slot_frame.pack(side="left", padx=8, pady=8)
     label_slot.pack(padx=8, pady=8)
     butt_add.pack(padx=8, pady=8)
     for i in range(2):
         create_slot()
 
-    set_frame.pack(side="left", padx=8, pady=8)
+    set_frame.pack(side="top", expand=True, fill="both", padx=8, pady=8)
     label_set.pack(padx=8, pady=8)
 
+    buttons_frame.pack(side="top", padx=8, pady=8)
+    butt_back.pack(side="bottom", anchor="sw", padx=8, pady=8)
+    butt_start.pack(after=butt_back, side="left", anchor="se", padx=8, pady=8)
+
+
+def draw_game_scene():
+
+    def cell_pressed(r, c):
+        print(r, c)
+
+    field_frame = tk.CTkFrame(app)
+    field_frame.place(relx=0.5, rely=0.5, anchor="center")
+    for row in range(16):
+        for col in range(16):
+            butt_cell = tk.CTkButton(field_frame, text="", width=32, height=32, command=lambda r=row, c=col: cell_pressed(r, c))
+            butt_cell.grid(column=col, row=row, padx=4, pady=4)
 
 
 main_menu = Scene(draw_main_menu)
 settings_menu = Scene(draw_settings)
 game_menu = Scene(draw_game_menu)
+game_scene = Scene(draw_game_scene)
 
-#SceneSwitcher.switch(main_menu)
+SceneSwitcher.switch(main_menu)
 #SceneSwitcher.switch(settings_menu)
-SceneSwitcher.switch(game_menu)
+#SceneSwitcher.switch(game_menu)
 app.mainloop()
