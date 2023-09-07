@@ -13,7 +13,7 @@ class SceneSwitcher:
 
     @staticmethod
     def clear():
-        for widget in SceneSwitcher.window.winfo_children():
+        for widget in SceneSwitcher.window.winfo_children(): # type: ignore
             widget.destroy()
 
     @staticmethod

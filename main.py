@@ -1,10 +1,6 @@
 import customtkinter as tk
 from scenes import *
-
-
-settings = {"resolution" : "700x700",
-            "fullscreen" : False
-            }
+from resourceManager import *
 
 tk.set_appearance_mode("system")
 tk.set_default_color_theme("green")
@@ -14,7 +10,7 @@ app.title("Эрудит")
 
 
 def center_window():
-    window_width, window_height = map(int, settings["resolution"].split("x"))
+    window_width, window_height = map(int, Settings.cfg["resolution"].split("x"))
     screen_width = app.winfo_screenwidth()
     screen_height = app.winfo_screenheight()
 
@@ -24,12 +20,11 @@ def center_window():
     app.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
     app.resizable(False, False)
 
-
 SceneSwitcher.window = app # type: ignore
-if settings["fullscreen"]:
-    app.state("zoomed")
+if Settings.cfg["fullscreen"]:
+    app.attributes('-fullscreen', True)
 else:
-    app.state("normal")
+    app.attributes('-fullscreen', False)
     center_window()
 
 
@@ -52,21 +47,32 @@ def draw_main_menu():
 def draw_settings():
 
     def res_change(res: str):
-        settings["resolution"] = res
+        nonlocal combo_res
+        combo_res.set(res)
+        Settings.cfg["resolution"] = res
         center_window()
+
+    def toggle_setting(key: str):
+        Settings.cfg[key] = int(not Settings.cfg[key])
 
     def toggle_fullscreen():
         nonlocal combo_res
-        if settings["fullscreen"]:
-            settings["fullscreen"] = False
-            app.state("normal")
-            app.geometry(settings["resolution"])
-            combo_res._state = "normal"
+        if Settings.cfg["fullscreen"]:
+            app.attributes('-fullscreen', False)
+            center_window()
+            combo_res._state = "readonly"
         else:
-            settings["fullscreen"] = True
-            app.state("zoomed")
+            app.attributes('-fullscreen', True)
             combo_res._state = "disabled"
-        
+        toggle_setting("fullscreen")
+    
+    
+
+    def quit_settings_menu():
+        SceneSwitcher.switch(main_menu)
+        Settings.save()
+
+
 
     main_frame = tk.CTkFrame(app)
     
@@ -74,19 +80,25 @@ def draw_settings():
     label = tk.CTkLabel(main_frame, text="Настройки")
     resolution_frame = tk.CTkFrame(main_frame)
     rules_frame = tk.CTkFrame(main_frame)
-    butt_back = tk.CTkButton(main_frame, height=40, text="Назад", command=lambda: SceneSwitcher.switch(main_menu))
+    butt_back = tk.CTkButton(main_frame, height=40, text="Назад", command=quit_settings_menu)
 
     #resolution frame
     label_res = tk.CTkLabel(resolution_frame, text="Разрешение")
     available_res = ["700x700", "1920x1080"]
-    combo_res = tk.CTkComboBox(resolution_frame, height=24, values=available_res, state="readonly", command=res_change)
-    combo_res.set(settings["resolution"])
+    combo_res = tk.CTkComboBox(resolution_frame, height=24, values=available_res, command=res_change)
+    combo_res.set(Settings.cfg["resolution"])
+    combo_res._state = "disabled" if Settings.cfg["fullscreen"] else "readonly"
+
     checkbox_fullscreen = tk.CTkCheckBox(resolution_frame, text="Полноэкранный", command=toggle_fullscreen)
+    checkbox_fullscreen.select() if Settings.cfg["fullscreen"] else checkbox_fullscreen.deselect()
     
     #rules frame
     label_rules = tk.CTkLabel(rules_frame, text="Правила")
-    checkbox_simplified = tk.CTkCheckBox(rules_frame, text="Упрощённый режим")
-    checkbox_toroid = tk.CTkCheckBox(rules_frame, text="Замкнутое поле")
+    checkbox_simplified = tk.CTkCheckBox(rules_frame, text="Упрощённый режим", command=lambda: toggle_setting("simple_mode"))
+    checkbox_simplified.select() if Settings.cfg["simple_mode"] else checkbox_simplified.deselect()
+
+    checkbox_toroid = tk.CTkCheckBox(rules_frame, text="Замкнутое поле", command=lambda: toggle_setting("toroid_field"))
+    checkbox_toroid.select() if Settings.cfg["toroid_field"] else checkbox_toroid.deselect()
 
     main_frame.place(relx=0.5, rely=0.5, anchor="center")
     
@@ -115,8 +127,8 @@ def draw_game_menu():
     slot_frame = tk.CTkFrame(main_frame)
     set_frame = tk.CTkFrame(main_frame)
     buttons_frame = tk.CTkFrame(main_frame)
-    butt_back = tk.CTkButton(buttons_frame, text="Назад", hover_color="red", command=lambda: SceneSwitcher.switch(main_menu))
-    butt_start = tk.CTkButton(buttons_frame, text="Начать", command=lambda: SceneSwitcher.switch(game_scene))
+    butt_back = tk.CTkButton(buttons_frame, height=40, text="Назад", hover_color="red", command=lambda: SceneSwitcher.switch(main_menu))
+    butt_start = tk.CTkButton(buttons_frame, height=40, text="Начать", command=lambda: SceneSwitcher.switch(game_scene))
 
     #slot frame
     label_slot = tk.CTkLabel(slot_frame, text="Игроки")

@@ -1,6 +1,25 @@
 from random import choices
 
 
+class Settings:
+    cfg = dict()
+    with open("settings.cfg", "r", encoding="utf-8") as f:
+        for line in f:
+            words = line.split()
+            try:
+                value = int(words[1])
+            except ValueError:
+                value = words[1]
+            cfg.update({words[0] : value})
+
+    @staticmethod
+    def save():
+        with open("settings.cfg", "w", encoding="utf-8") as f:
+            for key, value in Settings.cfg.items():
+                f.write(f"{key} {value}\n")
+            
+
+
 class Content:
 
     value = dict()
