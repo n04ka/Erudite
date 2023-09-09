@@ -1,46 +1,92 @@
 from random import choices
 import re
 from PIL import Image
+from customtkinter import CTkImage
 
 
 class Settings:
-    cfg = dict()
-    with open("settings.cfg", "r", encoding="utf-8") as f:
-        for line in f:
-            words = line.split()
-            try:
-                value = int(words[1])
-            except ValueError:
-                value = words[1]
-            cfg.update({words[0] : value})
+
+    cfg: dict
 
     @staticmethod
-    def save():
+    def load(verbose: bool = False):
+        if verbose:
+            print("Loading settings...", end="")
+        Settings.cfg = dict()
+        with open("settings.cfg", "r", encoding="utf-8") as f:
+            for line in f:
+                words = line.split()
+                try:
+                    value = int(words[1])
+                except ValueError:
+                    value = words[1]
+                Settings.cfg.update({words[0] : value})
+        if verbose:
+            print("OK")
+
+    @staticmethod
+    def save(verbose: bool = True):
+        if verbose:
+            print("Saving settings...", end="")
+
         with open("settings.cfg", "w", encoding="utf-8") as f:
             for key, value in Settings.cfg.items():
                 f.write(f"{key} {value}\n")
+
+        if verbose:
+            print("OK")
+    
+    @staticmethod
+    def toggle_setting(key: str):
+        Settings.cfg[key] = int(not Settings.cfg[key])
             
 
 
 class Content:
 
-    value = dict()
-    quantity = dict()
-    definition = dict()
-    textures = dict()
+    value: dict
+    quantity: dict
+    definition: dict
+    textures: dict
 
-    print("Loading characters...")
-    with open("resources/characters.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            words = line.split()
-            quantity.update({words[0] : int(words[1])})
-            value.update({words[0] : int(words[2])})
+    @staticmethod
+    def load(verbose: bool = False):
 
-    print("Loading dictionary...")
-    with open("resources/words.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            words = line.split(": ", 1)
-            definition.update({words[0] : words[1]})
+        Content.value = dict()
+        Content.quantity = dict()
+        Content.definition = dict()
+        Content.textures = dict()
+
+        if verbose:
+            print("Loading characters...", end="")
+
+        with open("resources/characters.txt", "r", encoding="utf-8") as f:
+            for line in f:
+                words = line.split()
+                Content.quantity.update({words[0] : int(words[1])})
+                Content.value.update({words[0] : int(words[2])})
+
+        if verbose:
+            print("OK")
+            print("Loading dictionary...", end="")
+
+        with open("resources/words.txt", "r", encoding="utf-8") as f:
+            for line in f:
+                words = line.split(": ", 1)
+                Content.definition.update({words[0] : words[1]})
+
+        if verbose:
+            print("OK")
+            print("Loading textures...", end="")
+
+        Content.textures.update({"ai-icon" : CTkImage(light_image=Image.open("resources/ai-icon.png"),
+                                        dark_image=Image.open("resources/ai-icon.png"),
+                                        size=(64, 64))})
+        Content.textures.update({"human-icon" : CTkImage(light_image=Image.open("resources/human-icon.png"),
+                                        dark_image=Image.open("resources/human-icon.png"),
+                                        size=(64, 64))})
+        if verbose:
+            print("OK")
 
     @staticmethod
     def get_matching_words(pattern: str):
@@ -54,17 +100,9 @@ class Cell:
 
     def __init__(self):
         self.content = ""
-        self.tags = set()
+        self.color = "white"
         self.isEdge = False
         self.isLocked = False
-
-
-    def apply_tag(self, tag):
-        self.tags.add(tag)
-
-
-    def get_bonuses(self) -> set:
-        return self.tags
     
 
     def lock(self):
@@ -79,47 +117,59 @@ class Cell:
         self.content = char
 
     
-    def put(self, char: str) -> set:
+    def put(self, char: str):
         self.insert(char)
         self.lock()
-        return self.get_bonuses()
     
 
     def str(self) -> str:
-        if len(self.tags) > 0:
-            for tag in self.tags:
-                return tag[0]
+        if self.color == "default":
+            return self.color[0]
         return "."
 
     
-
 class Field:
 
-    print("Loading field...")
-    
-    cells = [[Cell() for c in range(16)] for r in range(16)]
+    cells: list[list[Cell]]
 
-    with open("resources/default_field.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            tag, rest = line.split(" : ")
-            pairs = rest.split(", ")
-            for pair in pairs:
-                x, y = map(int, pair.split())
-                cells[x][y].apply_tag(tag)
+
+    @staticmethod
+    def load(verbose: bool = False):    
+        if verbose:
+            print("Loading field...", end="")
+        
+        Field.cells = [[Cell() for c in range(16)] for r in range(16)]
+
+        with open("resources/default_field.txt", "r", encoding="utf-8") as f:
+            for line in f:
+                tag, rest = line.split(" : ")
+                pairs = rest.split(", ")
+                for pair in pairs:
+                    x, y = map(int, pair.split())
+                    Field.cells[x][y].color = tag
+
+        if verbose:
+            print("OK")
     
+
     @staticmethod
     def display():
         for row in range(len(Field.cells)):
             print("".join([cell.str()+" " for cell in Field.cells[row]]))
 
-print("Field:")
-Field.display()
+
+    @staticmethod
+    def get_coords_generator():
+        for row in range(len(Field.cells)):
+            for col in range(len(Field.cells[0])):
+                yield row, col
 
 
 class Pack:
 
     def __init__(self):
         self.pack = "".join([char*n for char, n in Content.quantity.items()])
+
 
     def get_chars(self, number: int = 1) -> list[str]:
         try:
@@ -133,7 +183,7 @@ class Pack:
 
 class Player:
 
-    def __init__(self, name: str, isAI: bool, AI_difficulty = None):
+    def __init__(self, name: str, isAI: bool, AI_difficulty: str = ""):
         self.name = name
         self.isAI = isAI
         self.AI_difficulty = AI_difficulty
@@ -145,9 +195,11 @@ class Player:
     def give_chars(self, chars: list[str]):
         self.pool.append(chars)
 
+
     def get_chars(self) -> list[str]:
         return self.pool
     
+
     def act(self):
         if self.isAI:
             pass
