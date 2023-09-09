@@ -24,6 +24,6 @@ class FieldSlice:
         string = "".join([*map(foo, cells)])
         return string
     
-cut = FieldSlice((15, 10), (15, 15))
+#cut = FieldSlice((15, 10), (15, 15))
 #print(cut.get_exp())
-print(Content.get_matching_words(cut.get_exp()))
+#print(Content.get_matching_words(cut.get_exp()))

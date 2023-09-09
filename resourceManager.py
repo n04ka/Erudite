@@ -1,5 +1,6 @@
 from random import choices
 import re
+from PIL import Image
 
 
 class Settings:
@@ -26,6 +27,7 @@ class Content:
     value = dict()
     quantity = dict()
     definition = dict()
+    textures = dict()
 
     print("Loading characters...")
     with open("resources/characters.txt", "r", encoding="utf-8") as f:

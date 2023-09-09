@@ -1,9 +1,16 @@
 import customtkinter as tk
 from scenes import *
 from core import *
+from PIL import Image
 
 tk.set_appearance_mode("system")
 tk.set_default_color_theme("green")
+Content.textures.update({"ai-icon" : tk.CTkImage(light_image=Image.open("resources/ai-icon.png"),
+                                    dark_image=Image.open("resources/ai-icon.png"),
+                                    size=(64, 64))})
+Content.textures.update({"human-icon" : tk.CTkImage(light_image=Image.open("resources/human-icon.png"),
+                                    dark_image=Image.open("resources/human-icon.png"),
+                                    size=(64, 64))})
 
 app = tk.CTk()
 app.title("Эрудит")
@@ -139,7 +146,20 @@ def draw_game_menu():
         nonlocal MAX_PLAYERS
         players += 1
         slot = tk.CTkFrame(slot_frame)
-    
+
+        human_state = True
+        def get_icon():
+            nonlocal human_state
+            if human_state:
+                return Content.textures["human-icon"]
+            return Content.textures["ai-icon"]
+        
+        def toggle_ai():
+            nonlocal butt_icon
+            nonlocal human_state
+            human_state = not human_state
+            butt_icon.configure(image=get_icon())
+
         def delete_slot():
             nonlocal players
             nonlocal slot
@@ -147,7 +167,8 @@ def draw_game_menu():
             slot.destroy()
             butt_add._state = "normal"   
 
-        butt_icon = tk.CTkButton(slot, width=64, height=64, text="")
+    
+        butt_icon = tk.CTkButton(slot, width=64, image=get_icon(), height=64, text="", command=toggle_ai)
         label_name = tk.CTkLabel(slot, width=300, text="Новый игрок " + str(players), anchor="w", justify="left")
         butt_del = tk.CTkButton(slot, width=16, height=16, text="X", hover_color="red", command=delete_slot)
         
