@@ -1,6 +1,6 @@
 import customtkinter as tk
 from scenes import *
-from resourceManager import *
+from core import *
 
 tk.set_appearance_mode("system")
 tk.set_default_color_theme("green")

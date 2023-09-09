@@ -1,4 +1,5 @@
 from random import choices
+import re
 
 
 class Settings:
@@ -39,6 +40,14 @@ class Content:
             words = line.split(": ", 1)
             definition.update({words[0] : words[1]})
 
+    @staticmethod
+    def get_matching_words(pattern: str):
+        all_words = Content.definition.keys()
+        filtered = list(filter(lambda word: bool(re.match(pattern, word)), all_words))
+        print(filtered)
+        return filtered
+    
+
 class Cell:
 
     def __init__(self):
@@ -61,7 +70,7 @@ class Cell:
 
 
     def get_value(self):
-        return Content.value[self.content]
+        return "" if self.content == "" else Content.value[self.content]
 
 
     def insert(self, char: str):
@@ -96,13 +105,13 @@ class Field:
                 x, y = map(int, pair.split())
                 cells[x][y].apply_tag(tag)
     
-
-def display_field():
-    for row in range(len(Field.cells)):
-        print("".join([cell.str()+" " for cell in Field.cells[row]]))
+    @staticmethod
+    def display():
+        for row in range(len(Field.cells)):
+            print("".join([cell.str()+" " for cell in Field.cells[row]]))
 
 print("Field:")
-display_field()
+Field.display()
 
 
 class Pack:
