@@ -1,4 +1,4 @@
-from random import choices
+from random import choices, choice
 import re
 from PIL import Image
 from customtkinter import CTkImage
@@ -88,13 +88,22 @@ class Content:
         if verbose:
             print("OK")
 
+
     @staticmethod
-    def get_matching_words(pattern: str):
+    def get_matching_words(pattern: str) -> list[str]:
         all_words = Content.definition.keys()
-        filtered = list(filter(lambda word: bool(re.match(pattern, word)), all_words))
-        print(filtered)
+        filtered = list(filter(lambda word: bool(re.fullmatch(pattern, word)), all_words))
         return filtered
     
+
+    @staticmethod
+    def does_word_exist(word: str) -> bool:
+        try:
+            Content.definition[word]
+            return True
+        except KeyError:
+            return False
+
 
 class Cell:
 
@@ -213,3 +222,4 @@ class Game:
         self.players = players
         self.pack = Pack()
         self.turn = 0
+        self.placed_words = set()

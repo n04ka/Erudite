@@ -2,7 +2,6 @@ import customtkinter as tk
 import resourceManager
 from core import *
 from PIL import Image
-import os
 
 
 class Scene:
@@ -26,6 +25,7 @@ class MainMenu(Scene):
         self.butt_set = tk.CTkButton(self.main_frame, height=40, text="Настройки", command=lambda: GUI.switch_to(SettingsMenu()))
         self.butt_exit = tk.CTkButton(self.main_frame, height=40, text="Выйти", hover_color="darkred", command=GUI.quit)
 
+
     def display(self):
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
         self.label.pack(anchor="n", padx=8, pady=8)
@@ -45,10 +45,26 @@ class GameMenu(Scene):
             self.frame = tk.CTkFrame(parent.main_frame, corner_radius=0)
             self.butt_icon = tk.CTkButton(self.frame, width=64, image=self.get_icon(), height=64, text="", command=self.toggle_ai)
             self.label_name = tk.CTkLabel(self.frame, width=300, text=self.player.name, anchor="w", justify="left")
+            self.combo_dif = tk.CTkComboBox(self.frame, height=16, values=["Лёгкий", "Средний", "Сложный", "Маэстро"], command=self.change_ai_difficulty)
+            self.refresh_combo_dif()
+            self.combo_dif._state = "readonly" if self.player.isAI else "disabled"
             self.butt_del = tk.CTkButton(self.frame, width=16, height=16, text="X", hover_color="darkred", command=self.delete_slot)
 
 
-        def get_icon(self):
+        def change_ai_difficulty(self, res: str):
+            self.player.AI_difficulty = res
+
+
+        def refresh_combo_dif(self):
+            if self.player.isAI:
+                self.combo_dif._state = "readonly"
+                self.combo_dif.set("Средний")
+            else:
+                self.combo_dif.set("Человек")
+                self.combo_dif._state = "disabled"
+
+
+        def get_icon(self) -> CTkImage:
             if self.player.isAI:
                 return Content.textures["ai-icon"]
             return Content.textures["human-icon"]
@@ -57,6 +73,7 @@ class GameMenu(Scene):
         def toggle_ai(self):
             self.player.isAI = not self.player.isAI
             self.butt_icon.configure(image=self.get_icon())
+            self.refresh_combo_dif()
 
 
         def delete_slot(self):
@@ -67,9 +84,10 @@ class GameMenu(Scene):
 
         def pack(self, before=None):
             self.frame.pack(before=before, padx=8, pady=8)
-            self.butt_icon.pack(side="left", padx=8, pady=8)
-            self.label_name.pack(side="left", anchor="nw", padx=8, pady=8)
+            self.butt_icon.pack(side="left", padx=8, pady=8, fill="both")
             self.butt_del.pack(side="right", padx=8, pady=8)
+            self.label_name.pack(side="top", anchor="nw", padx=8, pady=8)
+            self.combo_dif.pack(side="top", after=self.label_name, anchor="nw", padx=8, pady=8)
 
 
     def __init__(self):
@@ -119,7 +137,7 @@ class GameMenu(Scene):
         self.label.pack(padx=8, pady=8)
 
         #slot frame
-        self.slot_frame.pack(side="left", padx=8, pady=8)
+        self.slot_frame.pack(side="left", expand=True, fill="both", padx=8, pady=8)
         self.label_slot.pack(padx=8, pady=8)
         self.butt_add.pack(padx=8, pady=8)
         for slot in self.players:
@@ -174,9 +192,11 @@ class SettingsMenu(Scene):
     def toggle_fullscreen(self):
         if Settings.cfg["fullscreen"]:
             GUI.app.attributes('-fullscreen', False)
+            GUI.app.state("normal")
             GUI.center_window()
             self.combo_res._state = "readonly"
         else:
+            GUI.app.state("zoomed")
             GUI.app.attributes('-fullscreen', True)
             self.combo_res._state = "disabled"
         Settings.toggle_setting("fullscreen")
@@ -209,7 +229,11 @@ class GameScene(Scene):
     
     def __init__(self):
         super().__init__()
-        self.field_frame = tk.CTkFrame(GUI.app)
+        self.main_frame = tk.CTkFrame(GUI.app)
+        self.field_frame = tk.CTkFrame(self.main_frame)
+        self.left_frame = tk.CTkFrame(self.main_frame)
+        self.right_frame = tk.CTkFrame(self.main_frame)
+        self.butt_back = tk.CTkButton(self.left_frame, height=40, text="Главное меню", hover_color="darkred", command=lambda: GUI.switch_to(MainMenu()))
         self.field: list[list[tk.CTkButton]] = []
         for row in range(16):
             line = []
@@ -223,7 +247,12 @@ class GameScene(Scene):
 
                 
     def display(self):
-        self.field_frame.place(relx=0.5, rely=0.5, anchor="center")
+
+        self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
+        self.left_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
+        self.butt_back.pack(side="bottom", padx=8, pady=8)
+        self.field_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
+        self.right_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
         fg_colors = {
             "white" : "burlywood1",
             "green" : "springgreen1",
@@ -251,6 +280,17 @@ class GUI:
     app: tk.CTk
     current_scene: Scene
 
+    
+    @staticmethod
+    def toggle_fullscreen():
+        if Settings.cfg["fullscreen"]:
+            GUI.app.state("zoomed")
+            GUI.app.attributes('-fullscreen', True)
+        else:
+            GUI.app.attributes('-fullscreen', False)
+            GUI.app.state("normal")
+            GUI.center_window()
+
 
     @staticmethod
     def begin():
@@ -258,14 +298,7 @@ class GUI:
         tk.set_default_color_theme("green")
         GUI.app = tk.CTk()
         GUI.app.title("Эрудит")
-
-        if Settings.cfg["fullscreen"]:
-            GUI.app.attributes('-fullscreen', True)
-        else:
-            GUI.app.attributes('-fullscreen', False)
-
-        GUI.center_window()
-
+        GUI.app.after(0, func=GUI.toggle_fullscreen)
         GUI.switch_to(MainMenu())
         GUI.app.mainloop()
 
