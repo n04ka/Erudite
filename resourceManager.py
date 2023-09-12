@@ -24,6 +24,7 @@ class Settings:
         if verbose:
             print("OK")
 
+
     @staticmethod
     def save(verbose: bool = True):
         if verbose:
@@ -36,6 +37,7 @@ class Settings:
         if verbose:
             print("OK")
     
+
     @staticmethod
     def toggle_setting(key: str):
         Settings.cfg[key] = int(not Settings.cfg[key])
@@ -48,6 +50,7 @@ class Content:
     quantity: dict
     definition: dict
     textures: dict
+
 
     @staticmethod
     def load(verbose: bool = False):
@@ -118,8 +121,8 @@ class Cell:
         self.isLocked = False
 
 
-    def get_value(self):
-        return "" if self.content == "" else Content.value[self.content]
+    def get_content(self):
+        return "" if self.content == "" else self.content
 
 
     def insert(self, char: str):
@@ -164,7 +167,7 @@ class Field:
     @staticmethod
     def display():
         for row in range(len(Field.cells)):
-            print("".join([cell.str()+" " for cell in Field.cells[row]]))
+            print("".join([(cell.content if cell.content != "" else ".")+" " for cell in Field.cells[row]]))
 
 
     @staticmethod

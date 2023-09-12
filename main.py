@@ -167,7 +167,7 @@ class SettingsMenu(Scene):
 
         #resolution frame
         self.label_res = tk.CTkLabel(self.resolution_frame, text="Разрешение")
-        available_res = ["700x700", "1920x1080"]
+        available_res = ["1100x700", "1920x1080"]
         self.combo_res = tk.CTkComboBox(self.resolution_frame, height=24, values=available_res, command=self.change_resolution)
         self.combo_res.set(Settings.cfg["resolution"])
         self.combo_res._state = "disabled" if Settings.cfg["fullscreen"] else "readonly"
