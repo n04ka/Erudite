@@ -1,5 +1,5 @@
+from typing_extensions import runtime
 import customtkinter as tk
-import resourceManager
 from core import *
 from PIL import Image
 
@@ -41,7 +41,8 @@ class GameMenu(Scene):
 
         def __init__(self, parent, isAI) -> None:
             self.parent = parent
-            self.player = Player(name="Новый игрок", isAI=isAI)
+            self.player = AI(name="Новый игрок") if isAI else Player(name="Новый игрок")
+            
             self.frame = tk.CTkFrame(parent.main_frame, corner_radius=0)
             self.butt_icon = tk.CTkButton(self.frame, width=64, image=self.get_icon(), height=64, text="", command=self.toggle_ai)
             self.label_name = tk.CTkLabel(self.frame, width=300, text=self.player.name, anchor="w", justify="left")
@@ -52,7 +53,10 @@ class GameMenu(Scene):
 
 
         def change_ai_difficulty(self, res: str):
-            self.player.AI_difficulty = res
+            try:
+                self.player.AI_difficulty = res # type: ignore
+            except:
+                raise RuntimeError("Trying to alter human's difficulty")
 
 
         def refresh_combo_dif(self):
@@ -72,6 +76,7 @@ class GameMenu(Scene):
 
         def toggle_ai(self):
             self.player.isAI = not self.player.isAI
+            self.player = AI(name="Новый игрок") if self.player.isAI else Player(name="Новый игрок")
             self.butt_icon.configure(image=self.get_icon())
             self.refresh_combo_dif()
 
