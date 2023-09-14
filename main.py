@@ -37,7 +37,7 @@ class GameMenu(Scene):
 
     class Slot:
 
-        def __init__(self, parent, isAI) -> None:
+        def __init__(self, parent, isAI: bool) -> None:
             self.parent = parent
             self.player = AI(name="Новый игрок") if isAI else Player(name="Новый игрок")
             
@@ -85,7 +85,7 @@ class GameMenu(Scene):
             self.parent.reset_add_button()
 
 
-        def pack(self, before=None):
+        def pack(self, before: tk.CTkButton | None = None):
             self.frame.pack(before=before, padx=8, pady=8)
             self.butt_icon.pack(side="left", padx=8, pady=8, fill="both")
             self.butt_del.pack(side="right", padx=8, pady=8)
