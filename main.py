@@ -1,7 +1,5 @@
-from typing_extensions import runtime
 import customtkinter as tk
 from core import *
-from PIL import Image
 
 
 class Scene:
