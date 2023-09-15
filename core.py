@@ -2,13 +2,17 @@ from resourceManager import *
 from random import choices, choice
 from itertools import cycle
 from copy import deepcopy
-from re import fullmatch
+from re import fullmatch, error
+from events import Events
 
 
 
 def get_matching_words(pattern: str) -> set[str]:
     all_words = Content.definition.keys()
-    filtered = set(filter(lambda word: fullmatch(pattern, word), all_words))
+    try:
+        filtered = set(filter(lambda word: fullmatch(pattern, word), all_words))
+    except error:
+        print("Error in pattern:", pattern)
     return filtered
 
 
@@ -42,17 +46,16 @@ def find_points_of_interest(contents: str | list[str]) -> list[int]:
     return points_of_interest
 
 
+class GameEvents(Events):
+    __events__ = ("insert")
+
+
 class Cell:
 
-    def __init__(self):
+    def __init__(self, coords: tuple[int, int]):
         self.content = ""
         self.color = "white"
-        self.isEdge = False
-        self.isLocked = False
-    
-
-    def lock(self):
-        self.isLocked = False
+        self.coords = coords
 
 
     def get_bonus(self) -> str | None:
@@ -72,11 +75,7 @@ class Cell:
 
     def insert(self, char: str):
         self.content = char
-
-    
-    def put(self, char: str):
-        self.insert(char)
-        self.lock()
+        Game.events.insert(self.coords, char)
     
 
     def str(self) -> str:
@@ -95,7 +94,7 @@ class Field:
         if verbose:
             print("Loading field...", end="")
         
-        Field.cells = [[Cell() for c in range(16)] for r in range(16)]
+        Field.cells = [[Cell((r, c)) for c in range(16)] for r in range(16)]
 
         with open("resources/default_field.txt", "r", encoding="utf-8") as f:
             for line in f:
@@ -160,8 +159,8 @@ class FieldSlice:
         return [Field.cells[i][self.start[1]] for i in range(self.start[0], self.start[0]+self.length+1)]
     
 
-    def get_bonuses(self) -> list[str | None]:
-        return list(map(lambda cell: cell.get_bonus(), self.get_cells()))
+    def get_bonuses(self, length: int) -> list[str | None]:
+        return list(map(lambda cell: cell.get_bonus(), self.get_cells()[:length]))
 
 
     def get_frozen_chars(self) -> list[str]:
@@ -178,10 +177,12 @@ class FieldSlice:
 
     def insert(self, word: str) -> list[str]:
         inserted_chars = []
-        for i, cell in enumerate(self.get_cells()):
-            if cell.content == "":
-                cell.content = word[i]
-                inserted_chars.append(word[i])
+        cells = self.get_cells()
+        for i, char in enumerate(word):
+            if cells[i].get_content() == "":
+                cells[i].insert(char)
+                inserted_chars.append(char)
+        print(f"Потраченные буквы: {inserted_chars}")
         return inserted_chars
 
 
@@ -195,7 +196,7 @@ class RequestToPlace:
 
     def validate(self, word: str) -> bool:
         needed_chars = list(word)
-        owned_chars = self.location.get_frozen_chars() + self.pool
+        owned_chars = self.location.get_frozen_chars()[:len(word)-1] + self.pool
         try:
             for char in needed_chars:
                 owned_chars.remove(char)
@@ -208,19 +209,25 @@ class RequestToPlace:
         row = [cell.get_content() for cell in self.location.get_cells()]
         pool = "".join(self.pool)
         patterns = []
-        unknown_char_before = f"([{pool}]|^)"
+        unknown_char_before = f"[{pool}]"
         unknown_char_after = f"([{pool}]|$)"
 
         for i in find_points_of_interest(row):
             char_patterns = []
             for _ in range(i):
-                char_patterns.append(unknown_char_before)
-            
+                if row[_] == "":
+                    char_patterns.append(unknown_char_before)
+                else:
+                    char_patterns.append(f"{row[_]}")
+
             char_patterns.append(f"[{pool}]" if row[i] == "" else f"{row[i]}")
             char_patterns.append(f"[{pool}]" if row[i+1] == "" else f"{row[i+1]}")
                 
             for _ in range(i+2, len(row)):
-                char_patterns.append(unknown_char_after)    
+                if row[_] == "":
+                    char_patterns.append(unknown_char_after)
+                else:
+                    char_patterns.append(f"({row[_]}|$)")   
             patterns.append("".join(char_patterns))
     
         return f"({'|'.join(patterns)})"
@@ -230,7 +237,7 @@ class RequestToPlace:
         """Considers bonuses"""
         value = 0
         total_multiplier = 1
-        bonuses = self.location.get_bonuses()
+        bonuses = self.location.get_bonuses(len(word))
 
         def increase_multiplier(times: int) -> int:
             nonlocal total_multiplier
@@ -245,7 +252,7 @@ class RequestToPlace:
             "X3"   : lambda char: increase_multiplier(3)
             }
 
-        if len(word) != len(bonuses):
+        if len(word) > len(bonuses):
             raise ValueError("Word and field slice lengths do not match to evaluate word value")
         
         for char, bonus in zip(word, bonuses):
@@ -265,7 +272,7 @@ class RequestToPlace:
         pattern = self.get_reg_exp()
         candidates = get_matching_words(pattern)
         options = set(filter(self.validate, candidates))
-        options -= placed_words
+        options -= Game.placed_words
         return list(options)
 
 
@@ -311,17 +318,17 @@ class Player:
         return taken
     
 
-    def remove_chars(self, chars: str | list[str]):
+    def remove_chars(self, chars: list[str]):
         for char in chars:
-            print(f"removing char {char}")
+            # print(f"removing char {char}")
             self.pool.remove(char)
 
 
     def record_placed_word(self, word: str, value: int):
-        self.placed_words.append(word)
-        placed_words.add(word)
+        self.placed_words.append((word, value))
+        Game.placed_words.add(word)
         self.score += value
-        print(f"Он выкладывает слово {word} за {value} очков")
+        # print(f"Он выкладывает слово {word} за {value} очков")
 
 
     def give_bonus(self, bonus_score: int):
@@ -347,9 +354,11 @@ class AI(Player):
     
     def fill_field_slice(self, location: FieldSlice) -> str | None:
         req = RequestToPlace(location, self.pool)
-        word, value = req.choose_word()
+        word, value = req.choose_word(criteria=self.criteria, data=1)
         if word == "":
             return None
+        print(f"Вставляет слово {word} в точке {location.start} за {value} очков")
+        print(f"{word}: {Content.definition[word]}")
         inserted_chars = location.insert(word)
         self.remove_chars(inserted_chars)
         self.record_placed_word(word, value)
@@ -357,25 +366,38 @@ class AI(Player):
 
 
     def act(self):
+        if len(self.pool) <= 0:
+            return
         for row in range(len(Field.cells)):
-            self.fill_field_slice(FieldSlice((row, 0), (row, len(Field.cells)-1)))
-            if len(self.pool) < 0:
-                return
+            for start in range(len(Field.cells)-1):
+                if self.fill_field_slice(FieldSlice((row, start), (row, len(Field.cells)-1))):
+                    Field.display()
+                    if len(self.pool) <= 0:
+                        return
+                    self.act()
+                    return
         
         for col in range(len(Field.cells)):
-            self.fill_field_slice(FieldSlice((0, col), (len(Field.cells)-1, col)))
-            if len(self.pool) < 0:
-                return
+            for start in range(len(Field.cells)-1):
+                if self.fill_field_slice(FieldSlice((start, col), (len(Field.cells)-1, col))):
+                    Field.display()
+                    if len(self.pool) <= 0:
+                        return
+                    self.act()
+                    return
 
 
 class Game:
 
+    placed_words = set()
+    events = GameEvents()
+
     def __init__(self, players: list[Player]):
         self.players = players
         self.pack = Pack()
+        self.bonus = 25
         self.turn = 0
-        self.max_turns = 3
-        self.placed_words = set()
+        self.max_turns = 10
         self.turn_iter = cycle(self.players)
         for player in self.players:
             player.replenish_pool(self.pack)
@@ -392,8 +414,14 @@ class Game:
         print(f"Ходит {self.active_player.name}")
         print(f"Его буквы: {self.active_player.pool}")
         self.active_player.act()
+        if self.active_player.get_pool_size() == 0:
+            print(f"{self.active_player.name} получает бонус {self.bonus} за трату всех букв")
+            self.active_player.give_bonus(self.bonus)
         self.active_player.replenish_pool(self.pack)
-        Field.display()
+
+    
+    def get_scorelist(self) -> list[tuple[str, int]]:
+        return [(player.name, player.score) for player in self.players]
 
 
 if __name__ == "__main__":
@@ -401,4 +429,12 @@ if __name__ == "__main__":
     Field.load()
     placed_words: set[str] = set()
     Field.cells[8][8].insert("а")
-    Game([AI("Володька"), AI("Санёк")]).start()
+    Field.display()
+    game = Game([AI("Володька", criteria="length"), AI("Санёк")])
+    game.start()
+    for record in game.get_scorelist():
+        print(*record)
+    for player in game.players:
+        print(f"Слова выложенные игроком {player.name}:")
+        for record in player.placed_words:
+            print(record[0], "\t\t", record[1])

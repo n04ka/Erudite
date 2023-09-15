@@ -1,5 +1,6 @@
 import customtkinter as tk
 from core import *
+from threading import Thread
 
 
 class Scene:
@@ -108,7 +109,7 @@ class GameMenu(Scene):
 
         #buttons frame
         self.butt_back = tk.CTkButton(self.buttons_frame, height=40, text="Назад", hover_color="darkred", command=lambda: GUI.switch_to(MainMenu()))
-        self.butt_start = tk.CTkButton(self.buttons_frame, height=40, text="Начать", command=lambda: GUI.switch_to(GameScene()))
+        self.butt_start = tk.CTkButton(self.buttons_frame, height=40, text="Начать", command=self.start_game)
 
         #slot frame
         self.label_slot = tk.CTkLabel(self.slot_frame, text="Игроки")
@@ -133,6 +134,13 @@ class GameMenu(Scene):
         else:
             self.butt_add._state = "normal"
 
+
+    def start_game(self):
+        GUI.switch_to(GameScene())
+        game = Game([slot.player for slot in self.players])
+        Field.cells[8][8].insert("а")
+        Thread(target=game.start).start()
+    
 
     def display(self):
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
@@ -236,17 +244,27 @@ class GameScene(Scene):
         self.field_frame = tk.CTkFrame(self.main_frame)
         self.left_frame = tk.CTkFrame(self.main_frame)
         self.right_frame = tk.CTkFrame(self.main_frame)
-        self.butt_back = tk.CTkButton(self.left_frame, height=40, text="Главное меню", hover_color="darkred", command=lambda: GUI.switch_to(MainMenu()))
+        self.butt_back = tk.CTkButton(self.left_frame, height=40, text="Главное меню", hover_color="darkred", command=self.quit_game)
         self.field: list[list[tk.CTkButton]] = []
         for row in range(16):
             line = []
             for col in range(16):
                 line.append(tk.CTkButton(self.field_frame, text="", text_color="black", width=32, height=32, command=lambda r=row, c=col: self.cell_pressed(r, c)))
             self.field.append(line)
+        Game.events.insert += self.redraw_cell
+
+
+    def quit_game(self):
+        Game.events.insert -= self.redraw_cell
+        GUI.switch_to(MainMenu())
 
 
     def cell_pressed(self, r: int, c: int):
         print(r, c)
+
+
+    def redraw_cell(self, coords: tuple[int, int], text: str):
+        self.field[coords[0]][coords[1]].configure(text=text)
 
                 
     def display(self):
