@@ -1,6 +1,6 @@
 import customtkinter as tk
 from core import *
-from threading import Thread
+from multiprocessing import Process
 
 
 class Scene:
@@ -136,11 +136,13 @@ class GameMenu(Scene):
 
 
     def start_game(self):
-        GUI.switch_to(GameScene())
         game = Game([slot.player for slot in self.players])
-        Field.cells[8][8].insert("а")
-        Thread(target=game.start).start()
-    
+        GUI.switch_to(GameScene(game))
+        game.field.cells[8][8].insert("а")
+        game_process = Process(target=core_main, name="game_process", daemon=True, args=(game,))
+        game_process.start()
+
+        
 
     def display(self):
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
@@ -238,8 +240,9 @@ class SettingsMenu(Scene):
 
 class GameScene(Scene):
     
-    def __init__(self):
+    def __init__(self, game: Game):
         super().__init__()
+        self.game = game
         self.main_frame = tk.CTkFrame(GUI.app)
         self.field_frame = tk.CTkFrame(self.main_frame)
         self.left_frame = tk.CTkFrame(self.main_frame)
@@ -268,7 +271,6 @@ class GameScene(Scene):
 
                 
     def display(self):
-
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
         self.left_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
         self.butt_back.pack(side="bottom", padx=8, pady=8)
@@ -290,8 +292,8 @@ class GameScene(Scene):
             "yellow" : "yellow4",
             "brown" : "sienna4"
         }
-        for row, col in Field.get_coords_generator():
-            cell = Field.cells[row][col]
+        for row, col in self.game.field.get_coords_generator():
+            cell = self.game.field.cells[row][col]
             self.field[row][col].configure(fg_color=fg_colors[cell.color], hover_color=hover_colors[cell.color])
             self.field[row][col].grid(column=col, row=row, padx=4, pady=4)
 
@@ -356,9 +358,9 @@ class GUI:
 
 
 def main():
+    global game_process
     Settings.load(True)
     Content.load(Settings.cfg["verbose"])
-    Field.load(Settings.cfg["verbose"])
     GUI().begin()
 
 

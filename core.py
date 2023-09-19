@@ -86,15 +86,15 @@ class Cell:
     
 class Field:
 
-    cells: list[list[Cell]]
+    def __init__(self, verbose: bool = False) -> None:
+        self.load(verbose)
 
 
-    @staticmethod
-    def load(verbose: bool = False):    
+    def load(self, verbose: bool = False):    
         if verbose:
             print("Loading field...", end="")
         
-        Field.cells = [[Cell((r, c)) for c in range(16)] for r in range(16)]
+        self.cells = [[Cell((r, c)) for c in range(16)] for r in range(16)]
 
         with open("resources/default_field.txt", "r", encoding="utf-8") as f:
             for line in f:
@@ -102,22 +102,20 @@ class Field:
                 pairs = rest.split(", ")
                 for pair in pairs:
                     x, y = map(int, pair.split())
-                    Field.cells[x][y].color = tag
+                    self.cells[x][y].color = tag
 
         if verbose:
             print("OK")
     
 
-    @staticmethod
-    def display():
-        for row in range(len(Field.cells)):
-            print("".join([(cell.content if cell.content != "" else ".")+" " for cell in Field.cells[row]]))
+    def display(self):
+        for row in range(len(game.field.cells)):
+            print("".join([(cell.content if cell.content != "" else ".")+" " for cell in self.cells[row]]))
 
 
-    @staticmethod
-    def get_coords_generator():
-        for row in range(len(Field.cells)):
-            for col in range(len(Field.cells[0])):
+    def get_coords_generator(self):
+        for row in range(len(self.cells)):
+            for col in range(len(self.cells[0])):
                 yield row, col
 
 
@@ -155,8 +153,8 @@ class FieldSlice:
 
     def get_cells(self) -> list[Cell]:
         if self.isHorizontal:
-            return Field.cells[self.start[0]][self.start[1]:self.start[1]+self.length+1]
-        return [Field.cells[i][self.start[1]] for i in range(self.start[0], self.start[0]+self.length+1)]
+            return game.field.cells[self.start[0]][self.start[1]:self.start[1]+self.length+1]
+        return [game.field.cells[i][self.start[1]] for i in range(self.start[0], self.start[0]+self.length+1)]
     
 
     def get_bonuses(self, length: int) -> list[str | None]:
@@ -368,19 +366,19 @@ class AI(Player):
     def act(self):
         if len(self.pool) <= 0:
             return
-        for row in range(len(Field.cells)):
-            for start in range(len(Field.cells)-1):
-                if self.fill_field_slice(FieldSlice((row, start), (row, len(Field.cells)-1))):
-                    Field.display()
+        for row in range(len(game.field.cells)):
+            for start in range(len(game.field.cells)-1):
+                if self.fill_field_slice(FieldSlice((row, start), (row, len(game.field.cells)-1))):
+                    game.field.display()
                     if len(self.pool) <= 0:
                         return
                     self.act()
                     return
         
-        for col in range(len(Field.cells)):
-            for start in range(len(Field.cells)-1):
-                if self.fill_field_slice(FieldSlice((start, col), (len(Field.cells)-1, col))):
-                    Field.display()
+        for col in range(len(game.field.cells)):
+            for start in range(len(game.field.cells)-1):
+                if self.fill_field_slice(FieldSlice((start, col), (len(game.field.cells)-1, col))):
+                    game.field.display()
                     if len(self.pool) <= 0:
                         return
                     self.act()
@@ -392,8 +390,9 @@ class Game:
     placed_words = set()
     events = GameEvents()
 
-    def __init__(self, players: list[Player]):
+    def __init__(self, players: list[Player], field: Field = Field()):
         self.players = players
+        self.field = field
         self.pack = Pack()
         self.bonus = 25
         self.turn = 0
@@ -424,13 +423,14 @@ class Game:
         return [(player.name, player.score) for player in self.players]
 
 
-if __name__ == "__main__":
+def core_main(game_to_start):
     Content.load()
-    Field.load()
-    placed_words: set[str] = set()
-    Field.cells[8][8].insert("а")
-    Field.display()
-    game = Game([AI("Володька", criteria="length"), AI("Санёк")])
+    global placed_words
+    global game
+    placed_words = set()
+    game = game_to_start
+    game.field.cells[8][8].insert("а")
+    game.field.display()
     game.start()
     for record in game.get_scorelist():
         print(*record)
@@ -438,3 +438,8 @@ if __name__ == "__main__":
         print(f"Слова выложенные игроком {player.name}:")
         for record in player.placed_words:
             print(record[0], "\t\t", record[1])
+
+
+if __name__ == "__main__":
+    Content.load()
+    core_main(Game([AI("Володька", criteria="length"), AI("Санёк")]))
