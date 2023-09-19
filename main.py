@@ -1,4 +1,5 @@
 import customtkinter as tk
+from events import Events
 from core import *
 from multiprocessing import Process
 
@@ -239,7 +240,7 @@ class SettingsMenu(Scene):
 
 
 class GameScene(Scene):
-    
+
     def __init__(self, game: Game):
         super().__init__()
         self.game = game
@@ -254,16 +255,25 @@ class GameScene(Scene):
             for col in range(16):
                 line.append(tk.CTkButton(self.field_frame, text="", text_color="black", width=32, height=32, command=lambda r=row, c=col: self.cell_pressed(r, c)))
             self.field.append(line)
-        Game.events.insert += self.redraw_cell
+        global events
+        events = Events(("on_cell_change",))
+        events.on_cell_change += self.redraw_text # type: ignore
 
 
     def quit_game(self):
-        Game.events.insert -= self.redraw_cell
+        global events
+        events.on_cell_change -= self.redraw_text # type: ignore
         GUI.switch_to(MainMenu())
 
 
     def cell_pressed(self, r: int, c: int):
         print(r, c)
+
+
+    def redraw_text(self):
+        for row, col in self.game.field.get_coords_generator():
+            cell = self.game.field.cells[row][col]
+            self.field[row][col].configure(text=self.game.field.cells[row][col].get_content())
 
 
     def redraw_cell(self, coords: tuple[int, int], text: str):
@@ -316,6 +326,15 @@ class GUI:
 
 
     @staticmethod
+    def check_for_events():
+        if Game.insert_event.is_set():
+            global events
+            events.on_cell_change()
+            Game.insert_event.clear()
+        GUI.app.after(100, GUI.check_for_events)
+
+
+    @staticmethod
     def begin():
         tk.set_appearance_mode("dark")
         tk.set_default_color_theme("green")
@@ -323,6 +342,7 @@ class GUI:
         GUI.app.title("Эрудит")
         GUI.app.after(0, func=GUI.toggle_fullscreen)
         GUI.switch_to(MainMenu())
+        GUI.app.after(100, GUI.check_for_events)
         GUI.app.mainloop()
 
 
@@ -358,7 +378,6 @@ class GUI:
 
 
 def main():
-    global game_process
     Settings.load(True)
     Content.load(Settings.cfg["verbose"])
     GUI().begin()

@@ -3,7 +3,7 @@ from random import choices, choice
 from itertools import cycle
 from copy import deepcopy
 from re import fullmatch, error
-from events import Events
+from multiprocessing import Event
 
 
 
@@ -12,7 +12,7 @@ def get_matching_words(pattern: str) -> set[str]:
     try:
         filtered = set(filter(lambda word: fullmatch(pattern, word), all_words))
     except error:
-        print("Error in pattern:", pattern)
+        raise error("Error in pattern:", pattern)
     return filtered
 
 
@@ -46,10 +46,6 @@ def find_points_of_interest(contents: str | list[str]) -> list[int]:
     return points_of_interest
 
 
-class GameEvents(Events):
-    __events__ = ("insert")
-
-
 class Cell:
 
     def __init__(self, coords: tuple[int, int]):
@@ -75,7 +71,7 @@ class Cell:
 
     def insert(self, char: str):
         self.content = char
-        Game.events.insert(self.coords, char)
+        Game.insert_event.set()
     
 
     def str(self) -> str:
@@ -388,7 +384,7 @@ class AI(Player):
 class Game:
 
     placed_words = set()
-    events = GameEvents()
+    insert_event = Event()
 
     def __init__(self, players: list[Player], field: Field = Field()):
         self.players = players
