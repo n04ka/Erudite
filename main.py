@@ -1,7 +1,5 @@
 import customtkinter as tk
-from events import Events
 from core import *
-from multiprocessing import Process
 
 
 class Scene:
@@ -110,7 +108,7 @@ class GameMenu(Scene):
 
         #buttons frame
         self.butt_back = tk.CTkButton(self.buttons_frame, height=40, text="Назад", hover_color="darkred", command=lambda: GUI.switch_to(MainMenu()))
-        self.butt_start = tk.CTkButton(self.buttons_frame, height=40, text="Начать", command=self.start_game)
+        self.butt_start = tk.CTkButton(self.buttons_frame, height=40, text="Начать", command=self.create_game)
 
         #slot frame
         self.label_slot = tk.CTkLabel(self.slot_frame, text="Игроки")
@@ -136,14 +134,12 @@ class GameMenu(Scene):
             self.butt_add._state = "normal"
 
 
-    def start_game(self):
+    def create_game(self):
         game = Game([slot.player for slot in self.players])
-        GUI.switch_to(GameScene(game))
-        game.field.cells[8][8].insert("а")
-        game_process = Process(target=core_main, name="game_process", daemon=True, args=(game,))
-        game_process.start()
+        game_scene = GameScene(game)
+        GUI.switch_to(game_scene)
+        game_scene.run_game()
 
-        
 
     def display(self):
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
@@ -244,6 +240,7 @@ class GameScene(Scene):
     def __init__(self, game: Game):
         super().__init__()
         self.game = game
+        self.paused = False
         self.main_frame = tk.CTkFrame(GUI.app)
         self.field_frame = tk.CTkFrame(self.main_frame)
         self.left_frame = tk.CTkFrame(self.main_frame)
@@ -255,14 +252,18 @@ class GameScene(Scene):
             for col in range(16):
                 line.append(tk.CTkButton(self.field_frame, text="", text_color="black", width=32, height=32, command=lambda r=row, c=col: self.cell_pressed(r, c)))
             self.field.append(line)
-        global events
-        events = Events(("on_cell_change",))
-        events.on_cell_change += self.redraw_text # type: ignore
+        self.game.events.on_insert += self.redraw_text # type: ignore
+        self.game.prepare()
 
+    
+    def run_game(self):
+        state = None
+        while state != "finished" and not self.paused:
+            state = self.game.run()
 
     def quit_game(self):
-        global events
-        events.on_cell_change -= self.redraw_text # type: ignore
+        self.paused = True
+        self.game.events.on_insert -= self.redraw_text # type: ignore
         GUI.switch_to(MainMenu())
 
 
@@ -270,10 +271,11 @@ class GameScene(Scene):
         print(r, c)
 
 
-    def redraw_text(self):
-        for row, col in self.game.field.get_coords_generator():
-            cell = self.game.field.cells[row][col]
-            self.field[row][col].configure(text=self.game.field.cells[row][col].get_content())
+    def redraw_text(self, coords: tuple[int, int]):
+        row, col = coords
+        cell = self.game.field.cells[row][col]
+        self.field[row][col].configure(text=cell.get_content())
+        GUI.app.update()
 
 
     def redraw_cell(self, coords: tuple[int, int], text: str):
@@ -326,15 +328,6 @@ class GUI:
 
 
     @staticmethod
-    def check_for_events():
-        if Game.insert_event.is_set():
-            global events
-            events.on_cell_change()
-            Game.insert_event.clear()
-        GUI.app.after(100, GUI.check_for_events)
-
-
-    @staticmethod
     def begin():
         tk.set_appearance_mode("dark")
         tk.set_default_color_theme("green")
@@ -342,7 +335,6 @@ class GUI:
         GUI.app.title("Эрудит")
         GUI.app.after(0, func=GUI.toggle_fullscreen)
         GUI.switch_to(MainMenu())
-        GUI.app.after(100, GUI.check_for_events)
         GUI.app.mainloop()
 
 
@@ -369,6 +361,7 @@ class GUI:
     def switch_to(scene: Scene):
         GUI.current_scene = scene
         GUI.current_scene.display()
+        GUI.app.update()
 
     
     @staticmethod

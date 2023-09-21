@@ -3,7 +3,7 @@ from random import choices, choice
 from itertools import cycle
 from copy import deepcopy
 from re import fullmatch, error
-from multiprocessing import Event
+from events import Events
 
 
 
@@ -71,7 +71,7 @@ class Cell:
 
     def insert(self, char: str):
         self.content = char
-        Game.insert_event.set()
+        Game.events.on_insert(self.coords)
     
 
     def str(self) -> str:
@@ -381,10 +381,15 @@ class AI(Player):
                     return
 
 
+class GameEvents(Events):
+
+    __events__ = ('on_insert', 'on_next_turn')
+
+
 class Game:
 
+    events = GameEvents()
     placed_words = set()
-    insert_event = Event()
 
     def __init__(self, players: list[Player], field: Field = Field()):
         self.players = players
@@ -398,12 +403,31 @@ class Game:
             player.replenish_pool(self.pack)
 
 
+    def prepare(self):
+        Content.load()
+        global placed_words
+        global game
+        placed_words = Game.placed_words
+        game = self
+        self.field.cells[8][8].insert("а")
+        self.field.display()
+
+
     def start(self):
-        while not self.pack.is_empty() and self.turn < self.max_turns:
+        state = None
+        while state != "finished":
+            state = self.run()
+
+
+    def run(self):
+        if not self.pack.is_empty() and self.turn < self.max_turns:
             self.next_turn()
+            return
+        return "finished"
 
 
     def next_turn(self):
+        Game.events.on_next_turn()
         self.turn += 1
         self.active_player = next(self.turn_iter)
         print(f"Ходит {self.active_player.name}")
@@ -419,23 +443,17 @@ class Game:
         return [(player.name, player.score) for player in self.players]
 
 
-def core_main(game_to_start):
-    Content.load()
-    global placed_words
-    global game
-    placed_words = set()
-    game = game_to_start
-    game.field.cells[8][8].insert("а")
-    game.field.display()
-    game.start()
-    for record in game.get_scorelist():
-        print(*record)
-    for player in game.players:
-        print(f"Слова выложенные игроком {player.name}:")
-        for record in player.placed_words:
-            print(record[0], "\t\t", record[1])
+    def display_summary(self):
+        for record in game.get_scorelist():
+            print(*record)
+        for player in game.players:
+            print(f"Слова выложенные игроком {player.name}:")
+            for record in player.placed_words:
+                print(record[0], "\t\t", record[1])
 
-
+  
 if __name__ == "__main__":
     Content.load()
-    core_main(Game([AI("Володька", criteria="length"), AI("Санёк")]))
+    game = Game([AI("Володька", criteria="length"), AI("Санёк")])
+    game.prepare()
+    game.start()
