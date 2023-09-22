@@ -4,24 +4,25 @@ from core import *
 
 class Scene:
 
-    def __init__(self):
-        GUI.clear_window()
+    def __init__(self, app: tk.CTk) -> None:
+        self._app = app
+        GUI.clear_window(app)
 
 
-    def display(self):
+    def display(self) -> None:
         pass
 
 
 class MainMenu(Scene):
     
-    def __init__(self):
-        super().__init__()
-        self.main_frame = tk.CTkFrame(GUI.app)
+    def __init__(self, app: tk.CTk):
+        super().__init__(app)
+        self.main_frame = tk.CTkFrame(self._app)
         self.label = tk.CTkLabel(self.main_frame, text="Главное меню")
         self.butt_resume = tk.CTkButton(self.main_frame, height=40, text="Продолжить", state="disabled")
-        self.butt_start = tk.CTkButton(self.main_frame, height=40, text="Начать", command=lambda: GUI.switch_to(GameMenu()))
-        self.butt_set = tk.CTkButton(self.main_frame, height=40, text="Настройки", command=lambda: GUI.switch_to(SettingsMenu()))
-        self.butt_exit = tk.CTkButton(self.main_frame, height=40, text="Выйти", hover_color="darkred", command=GUI.quit)
+        self.butt_start = tk.CTkButton(self.main_frame, height=40, text="Начать", command=lambda: GameMenu(app).display())
+        self.butt_set = tk.CTkButton(self.main_frame, height=40, text="Настройки", command=lambda: SettingsMenu(app).display())
+        self.butt_exit = tk.CTkButton(self.main_frame, height=40, text="Выйти", hover_color="darkred", command=self._app.quit)
 
 
     def display(self):
@@ -93,12 +94,12 @@ class GameMenu(Scene):
             self.combo_dif.pack(side="top", after=self.label_name, anchor="nw", padx=8, pady=8)
 
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, app: tk.CTk):
+        super().__init__(app)
         self.MAX_PLAYERS = 4
         self.players: list[GameMenu.Slot] = []
 
-        self.main_frame = tk.CTkFrame(GUI.app)
+        self.main_frame = tk.CTkFrame(self._app)
 
         #main frame
         self.label = tk.CTkLabel(self.main_frame, text="Создание игры")
@@ -107,7 +108,7 @@ class GameMenu(Scene):
         self.buttons_frame = tk.CTkFrame(self.main_frame)
 
         #buttons frame
-        self.butt_back = tk.CTkButton(self.buttons_frame, height=40, text="Назад", hover_color="darkred", command=lambda: GUI.switch_to(MainMenu()))
+        self.butt_back = tk.CTkButton(self.buttons_frame, height=40, text="Назад", hover_color="darkred", command=lambda: MainMenu(app).display())
         self.butt_start = tk.CTkButton(self.buttons_frame, height=40, text="Начать", command=self.create_game)
 
         #slot frame
@@ -136,9 +137,8 @@ class GameMenu(Scene):
 
     def create_game(self):
         game = Game([slot.player for slot in self.players])
-        game_scene = GameScene(game)
-        GUI.switch_to(game_scene)
-        game_scene.run_game()
+        game_scene = GameScene(self._app, game)
+        game_scene.display()
 
 
     def display(self):
@@ -165,9 +165,9 @@ class GameMenu(Scene):
 
 class SettingsMenu(Scene):
     
-    def __init__(self):
-        super().__init__()
-        self.main_frame = tk.CTkFrame(GUI.app)
+    def __init__(self, app: tk.CTk):
+        super().__init__(app)
+        self.main_frame = tk.CTkFrame(app)
     
         #main frame
         self.label = tk.CTkLabel(self.main_frame, text="Настройки")
@@ -196,18 +196,18 @@ class SettingsMenu(Scene):
 
     def quit_settings_menu(self):
         Settings.save()
-        GUI.switch_to(MainMenu())
+        MainMenu(self._app).display()
         
 
     def toggle_fullscreen(self):
         if Settings.cfg["fullscreen"]:
-            GUI.app.attributes('-fullscreen', False)
-            GUI.app.state("normal")
-            GUI.center_window()
+            self._app.attributes('-fullscreen', False)
+            self._app.state("normal")
+            GUI.center_window(self._app)
             self.combo_res._state = "readonly"
         else:
-            GUI.app.state("zoomed")
-            GUI.app.attributes('-fullscreen', True)
+            self._app.state("zoomed")
+            self._app.attributes('-fullscreen', True)
             self.combo_res._state = "disabled"
         Settings.toggle_setting("fullscreen")
 
@@ -215,7 +215,7 @@ class SettingsMenu(Scene):
     def change_resolution(self, res: str):
         self.combo_res.set(res)
         Settings.cfg["resolution"] = res
-        GUI.center_window()
+        GUI.center_window(self._app)
 
 
     def display(self):
@@ -237,45 +237,42 @@ class SettingsMenu(Scene):
 
 class GameScene(Scene):
 
-    def __init__(self, game: Game):
-        super().__init__()
+    def __init__(self, app: tk.CTk, game: Game):
+        super().__init__(app)
         self.game = game
-        self.paused = False
-        self.main_frame = tk.CTkFrame(GUI.app)
+        GUI.core.send(self.game)
+
+        self.main_frame = tk.CTkFrame(app)
         self.field_frame = tk.CTkFrame(self.main_frame)
         self.left_frame = tk.CTkFrame(self.main_frame)
         self.right_frame = tk.CTkFrame(self.main_frame)
         self.butt_back = tk.CTkButton(self.left_frame, height=40, text="Главное меню", hover_color="darkred", command=self.quit_game)
+        self.butt_next_turn = tk.CTkButton(self.right_frame, height=40, text="Следующий ход", command=lambda: GUI.core.send('resume'))
+
         self.field: list[list[tk.CTkButton]] = []
         for row in range(16):
             line = []
             for col in range(16):
                 line.append(tk.CTkButton(self.field_frame, text="", text_color="black", width=32, height=32, command=lambda r=row, c=col: self.cell_pressed(r, c)))
             self.field.append(line)
-        self.game.events.on_insert += self.redraw_text # type: ignore
-        self.game.prepare()
+        
+        GUI.core.send('start')
 
-    
-    def run_game(self):
-        state = None
-        while state != "finished" and not self.paused:
-            state = self.game.run()
 
     def quit_game(self):
-        self.paused = True
-        self.game.events.on_insert -= self.redraw_text # type: ignore
-        GUI.switch_to(MainMenu())
+        GUI.core.send('pause')
+        MainMenu(self._app).display()
 
 
     def cell_pressed(self, r: int, c: int):
-        print(r, c)
+        print(f"user pressed ({r}, {c}) cell")
 
 
     def redraw_text(self, coords: tuple[int, int]):
         row, col = coords
         cell = self.game.field.cells[row][col]
         self.field[row][col].configure(text=cell.get_content())
-        GUI.app.update()
+        self._app.update()
 
 
     def redraw_cell(self, coords: tuple[int, int], text: str):
@@ -285,9 +282,13 @@ class GameScene(Scene):
     def display(self):
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
         self.left_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
-        self.butt_back.pack(side="bottom", padx=8, pady=8)
-        self.field_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
+        self.field_frame.pack(side="left", fill="y", expand=True, ipadx=4, ipady=4, padx=8, pady=8)
         self.right_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
+
+        self.butt_back.pack(side="bottom", padx=8, pady=8)
+
+        self.butt_next_turn.pack(side="bottom", padx=8, pady=8)
+
         fg_colors = {
             "white" : "burlywood1",
             "green" : "springgreen1",
@@ -312,68 +313,99 @@ class GameScene(Scene):
 
 class GUI:
 
-    app: tk.CTk
-    current_scene: Scene
-
-    
-    @staticmethod
-    def toggle_fullscreen():
-        if Settings.cfg["fullscreen"]:
-            GUI.app.state("zoomed")
-            GUI.app.attributes('-fullscreen', True)
-        else:
-            GUI.app.attributes('-fullscreen', False)
-            GUI.app.state("normal")
-            GUI.center_window()
+    core: PipeConnection
 
 
-    @staticmethod
-    def begin():
+    def __init__(self, connection: PipeConnection) -> None:
+        
+        Settings.load(True)
+        Content.load(Settings.cfg["verbose"])
         tk.set_appearance_mode("dark")
         tk.set_default_color_theme("green")
-        GUI.app = tk.CTk()
-        GUI.app.title("Эрудит")
-        GUI.app.after(0, func=GUI.toggle_fullscreen)
-        GUI.switch_to(MainMenu())
-        GUI.app.mainloop()
+
+        self._conn = connection
+        GUI.core = connection
+
+        self._app = tk.CTk()
+        self._app.protocol("WM_DELETE_WINDOW", self.quit)
+
+        self._listener = Thread(target=self.listener, name='gui listener', daemon=True)
+        self._on = True
+
+        self._app.title("Эрудит")
+        self._app.after(0, func=self.toggle_fullscreen)
+        self._listener.start()
+        MainMenu(self._app).display()
+
+        self._app.mainloop()
+
+
+    def listener(self) -> None:
+        while self._on:
+            if self._conn.poll():
+                data = self._conn.recv()
+
+
+    def toggle_fullscreen(self) -> None:
+        if Settings.cfg["fullscreen"]:
+            self._app.state("zoomed")
+            self._app.attributes('-fullscreen', True)
+        else:
+            self._app.attributes('-fullscreen', False)
+            self._app.state("normal")
+            GUI.center_window(self._app)
+
+
+    def quit(self) -> None:
+        self._conn.send('finish')
+        self._on = False
+        self._app.destroy()
 
 
     @staticmethod
-    def clear_window():
-        for widget in GUI.app.winfo_children():
+    def clear_window(app: tk.CTk) -> None:
+        for widget in app.winfo_children():
             widget.destroy()
 
 
     @staticmethod
-    def center_window():
+    def center_window(app: tk.CTk) -> None:
+
         window_width, window_height = map(int, Settings.cfg["resolution"].split("x"))
-        screen_width = GUI.app.winfo_screenwidth()
-        screen_height = GUI.app.winfo_screenheight()
+        screen_width = app.winfo_screenwidth()
+        screen_height = app.winfo_screenheight()
 
         x_cordinate = int((screen_width/2) - (window_width/2))
         y_cordinate = int((screen_height/2) - (window_height/2))
 
-        GUI.app.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
-        GUI.app.resizable(False, False)
+        app.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
+        app.resizable(False, False)
 
 
-    @staticmethod
-    def switch_to(scene: Scene):
-        GUI.current_scene = scene
-        GUI.current_scene.display()
-        GUI.app.update()
-
-    
-    @staticmethod
-    def quit():
-        GUI.clear_window()
-        exit()
-
-
-def main():
+def main() -> None:
     Settings.load(True)
-    Content.load(Settings.cfg["verbose"])
-    GUI().begin()
+    conn1, conn2 = Pipe()
+    gui = Process(target=GUI, name='gui process', args=[conn1])
+    core = Process(target=Core, name='core process', args=[conn2], daemon=True)
+    gui.start()
+    if Settings.cfg['verbose']:
+        print('gui ON')
+
+    core.start()
+    if Settings.cfg['verbose']:
+        print('core ON')
+
+    gui.join()
+    if Settings.cfg['verbose']:
+        print('gui OFF')
+
+    if core.is_alive():
+        core.terminate()
+        if Settings.cfg['verbose']:
+            print('core terminated')
+    else:
+        if Settings.cfg['verbose']:
+            print('core OFF')
 
 
 if __name__ == '__main__':

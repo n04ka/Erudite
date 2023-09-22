@@ -1,10 +1,11 @@
+from multiprocessing import Pipe, Process
+from multiprocessing.connection import PipeConnection
+from threading import Thread
 from resourceManager import *
 from random import choices, choice
 from itertools import cycle
 from copy import deepcopy
 from re import fullmatch, error
-from events import Events
-
 
 
 def get_matching_words(pattern: str) -> set[str]:
@@ -29,7 +30,7 @@ def get_word_value(word: str) -> int:
     return sum([Content.value[char] for char in word])
 
 
-def get_word_value_per_char(word: str, bonuses: list[str] = []) -> float:
+def get_word_value_per_char(word: str) -> float:
     """Does not consider bonuses"""
     if len(word) == 0:
         return 0
@@ -71,7 +72,6 @@ class Cell:
 
     def insert(self, char: str):
         self.content = char
-        Game.events.on_insert(self.coords)
     
 
     def str(self) -> str:
@@ -381,14 +381,8 @@ class AI(Player):
                     return
 
 
-class GameEvents(Events):
-
-    __events__ = ('on_insert', 'on_next_turn')
-
-
 class Game:
 
-    events = GameEvents()
     placed_words = set()
 
     def __init__(self, players: list[Player], field: Field = Field()):
@@ -419,7 +413,7 @@ class Game:
             state = self.run()
 
 
-    def run(self):
+    def run(self) -> None | str:
         if not self.pack.is_empty() and self.turn < self.max_turns:
             self.next_turn()
             return
@@ -427,7 +421,6 @@ class Game:
 
 
     def next_turn(self):
-        Game.events.on_next_turn()
         self.turn += 1
         self.active_player = next(self.turn_iter)
         print(f"Ходит {self.active_player.name}")
@@ -451,9 +444,90 @@ class Game:
             for record in player.placed_words:
                 print(record[0], "\t\t", record[1])
 
-  
+
+class Core:
+
+    def __init__(self, connection: PipeConnection) -> None:
+        
+        Settings.load()
+        self._conn = connection
+        self._game: None | Game = None
+        self._listener_thread = Thread(target=self.listener, name='core listener', daemon=True)
+        self._game_thread = Thread(target=self.game_runner, name='game thread', daemon=True)
+        self._paused = True
+        self._finished = False
+        
+        self._listener_thread.start()
+
+        if self._listener_thread.is_alive():
+            self._listener_thread.join()
+            if Settings.cfg['verbose'] is True:
+                print('Core listener thread OFF')
+
+        if self._game_thread.is_alive():
+            self._game_thread.join()
+            if Settings.cfg['verbose'] is True:
+                print('Core game thread OFF')
+
+
+    def listener(self) -> None:
+        if Settings.cfg['verbose'] is True:
+            print('Core listener thread ON')
+        while not self._finished:
+            if self._conn.poll():
+                data = self._conn.recv()
+
+                if Settings.cfg['verbose']:
+                    print(f'core has recieved a command: {data}')
+
+                if isinstance(data, Game):
+                    self._game = data
+
+                elif isinstance(data, str):
+                    match data:
+                        case 'pause':
+                            self._paused = True
+
+                        case 'resume':
+                            self._paused = False
+
+                        case 'start':
+                            if self._game is None:
+                                raise ValueError('start command recieved but there is no game to start')
+                            if not self._game_thread.is_alive():
+                                self._game_thread.start()
+
+                        case 'finish':
+                            self._finished = True
+                            break
+                            
+                        case 'send game':
+                            self._conn.send(self._game)
+
+                        case _:
+                            print(f'unknown command: {data}')
+                else:
+                    raise ValueError('core has recieved some unknown data')
+            
+
+    def game_runner(self) -> None:
+        if Settings.cfg['verbose'] is True:
+            print('Core game thread ON')
+        Content.load()
+        while self._game is None:
+            pass
+        self._game.prepare()
+
+        while not self._finished:
+            if not self._paused:
+                state = self._game.run()
+                if state == 'finished':
+                    self._finished = True
+            
+
 if __name__ == "__main__":
-    Content.load()
+    Settings.load(True)
+    Content.load(Settings.cfg['verbose'])
     game = Game([AI("Володька", criteria="length"), AI("Санёк")])
     game.prepare()
     game.start()
