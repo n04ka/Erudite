@@ -49,7 +49,7 @@ def find_points_of_interest(contents: str | list[str]) -> list[int]:
 
 class Cell:
 
-    def __init__(self, coords: tuple[int, int]):
+    def __init__(self, coords: tuple[int, int]) -> None:
         self.content = ""
         self.color = "white"
         self.coords = coords
@@ -66,12 +66,14 @@ class Cell:
         return color_to_bonus[self.color]
 
 
-    def get_content(self):
+    def get_content(self) -> str:
         return self.content
 
 
-    def insert(self, char: str):
+    def insert(self, char: str) -> None:
         self.content = char
+        if hasattr(Core, 'gui_conn'):
+            Core.gui_conn.send(('insert', *self.coords, char))
     
 
     def str(self) -> str:
@@ -80,13 +82,13 @@ class Cell:
         return "."
 
     
-class Field:
+class Field: 
 
     def __init__(self, verbose: bool = False) -> None:
         self.load(verbose)
 
 
-    def load(self, verbose: bool = False):    
+    def load(self, verbose: bool = False) -> None:    
         if verbose:
             print("Loading field...", end="")
         
@@ -104,7 +106,7 @@ class Field:
             print("OK")
     
 
-    def display(self):
+    def display(self) -> None:
         for row in range(len(game.field.cells)):
             print("".join([(cell.content if cell.content != "" else ".")+" " for cell in self.cells[row]]))
 
@@ -131,7 +133,7 @@ class Pack:
         return choice
     
 
-    def return_chars(self, chars: list[str]):
+    def return_chars(self, chars: list[str]) -> None:
         self.pack += "".join(chars)
 
 
@@ -293,7 +295,7 @@ class RequestToPlace:
 
 class Player:
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
         self.isAI = False
         self.pool = []
@@ -301,7 +303,7 @@ class Player:
         self.placed_words = []
 
     
-    def replenish_pool(self, pack: Pack):
+    def replenish_pool(self, pack: Pack) -> None:
         chars = pack.get_chars(7 - self.get_pool_size())
         self.pool.extend(chars)
 
@@ -312,20 +314,20 @@ class Player:
         return taken
     
 
-    def remove_chars(self, chars: list[str]):
+    def remove_chars(self, chars: list[str]) -> None:
         for char in chars:
             # print(f"removing char {char}")
             self.pool.remove(char)
 
 
-    def record_placed_word(self, word: str, value: int):
+    def record_placed_word(self, word: str, value: int) -> None:
         self.placed_words.append((word, value))
         Game.placed_words.add(word)
         self.score += value
         # print(f"Он выкладывает слово {word} за {value} очков")
 
 
-    def give_bonus(self, bonus_score: int):
+    def give_bonus(self, bonus_score: int) -> None:
         self.score += bonus_score
 
 
@@ -333,13 +335,13 @@ class Player:
         return len(self.pool)
 
 
-    def act(self):
+    def act(self) -> None:
         pass
 
 
 class AI(Player):
 
-    def __init__(self, name: str, AI_difficulty: str = "Cредний", criteria: str = "value-per-char"):
+    def __init__(self, name: str, AI_difficulty: str = "Cредний", criteria: str = "value-per-char") -> None:
         super().__init__(name)
         self.isAI = True
         self.AI_difficulty = AI_difficulty
@@ -359,7 +361,7 @@ class AI(Player):
         return word
 
 
-    def act(self):
+    def act(self) -> None:
         if len(self.pool) <= 0:
             return
         for row in range(len(game.field.cells)):
@@ -385,7 +387,7 @@ class Game:
 
     placed_words = set()
 
-    def __init__(self, players: list[Player], field: Field = Field()):
+    def __init__(self, players: list[Player], field: Field = Field()) -> None:
         self.players = players
         self.field = field
         self.pack = Pack()
@@ -393,11 +395,12 @@ class Game:
         self.turn = 0
         self.max_turns = 10
         self.turn_iter = cycle(self.players)
+        self.active_player = next(self.turn_iter)
         for player in self.players:
             player.replenish_pool(self.pack)
 
 
-    def prepare(self):
+    def prepare(self) -> None:
         Content.load()
         global placed_words
         global game
@@ -414,17 +417,21 @@ class Game:
 
 
     def run(self) -> None | str:
+        
         if not self.pack.is_empty() and self.turn < self.max_turns:
+            Core.gui_conn.send(('turn', self.active_player))
             self.next_turn()
             return
         return "finished"
 
 
-    def next_turn(self):
+    def next_turn(self) -> None:
         self.turn += 1
         self.active_player = next(self.turn_iter)
+
         print(f"Ходит {self.active_player.name}")
         print(f"Его буквы: {self.active_player.pool}")
+
         self.active_player.act()
         if self.active_player.get_pool_size() == 0:
             print(f"{self.active_player.name} получает бонус {self.bonus} за трату всех букв")
@@ -436,7 +443,7 @@ class Game:
         return [(player.name, player.score) for player in self.players]
 
 
-    def display_summary(self):
+    def display_summary(self) -> None:
         for record in game.get_scorelist():
             print(*record)
         for player in game.players:
@@ -447,10 +454,13 @@ class Game:
 
 class Core:
 
+    gui_conn: PipeConnection
+
+
     def __init__(self, connection: PipeConnection) -> None:
         
         Settings.load()
-        self._conn = connection
+        Core.gui_conn = connection
         self._game: None | Game = None
         self._listener_thread = Thread(target=self.listener, name='core listener', daemon=True)
         self._game_thread = Thread(target=self.game_runner, name='game thread', daemon=True)
@@ -474,8 +484,8 @@ class Core:
         if Settings.cfg['verbose'] is True:
             print('Core listener thread ON')
         while not self._finished:
-            if self._conn.poll():
-                data = self._conn.recv()
+            if Core.gui_conn.poll():
+                data = Core.gui_conn.recv()
 
                 if Settings.cfg['verbose']:
                     print(f'core has recieved a command: {data}')
@@ -502,7 +512,7 @@ class Core:
                             break
                             
                         case 'send game':
-                            self._conn.send(self._game)
+                            Core.gui_conn.send(self._game)
 
                         case _:
                             print(f'unknown command: {data}')

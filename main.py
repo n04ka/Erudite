@@ -1,5 +1,11 @@
 import customtkinter as tk
 from core import *
+from events import Events
+
+
+class CoreEvents(Events):
+
+    __events__ = ('on_cell_insert')
 
 
 class Scene:
@@ -15,7 +21,7 @@ class Scene:
 
 class MainMenu(Scene):
     
-    def __init__(self, app: tk.CTk):
+    def __init__(self, app: tk.CTk) -> None:
         super().__init__(app)
         self.main_frame = tk.CTkFrame(self._app)
         self.label = tk.CTkLabel(self.main_frame, text="Главное меню")
@@ -25,7 +31,7 @@ class MainMenu(Scene):
         self.butt_exit = tk.CTkButton(self.main_frame, height=40, text="Выйти", hover_color="darkred", command=self._app.quit)
 
 
-    def display(self):
+    def display(self) -> None:
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
         self.label.pack(anchor="n", padx=8, pady=8)
         self.butt_resume.pack(padx=8, pady=8)
@@ -51,14 +57,14 @@ class GameMenu(Scene):
             self.butt_del = tk.CTkButton(self.frame, width=16, height=16, text="X", hover_color="darkred", command=self.delete_slot)
 
 
-        def change_ai_difficulty(self, res: str):
+        def change_ai_difficulty(self, res: str) -> None:
             try:
                 self.player.AI_difficulty = res # type: ignore
             except:
                 raise RuntimeError("Trying to alter human's difficulty")
 
 
-        def refresh_combo_dif(self):
+        def refresh_combo_dif(self) -> None:
             if self.player.isAI:
                 self.combo_dif._state = "readonly"
                 self.combo_dif.set("Средний")
@@ -73,20 +79,20 @@ class GameMenu(Scene):
             return Content.textures["human-icon"]
         
 
-        def toggle_ai(self):
+        def toggle_ai(self) -> None:
             self.player.isAI = not self.player.isAI
             self.player = AI(name="Новый игрок") if self.player.isAI else Player(name="Новый игрок")
             self.butt_icon.configure(image=self.get_icon())
             self.refresh_combo_dif()
 
 
-        def delete_slot(self):
+        def delete_slot(self) -> None:
             self.frame.destroy()
             self.parent.players.remove(self)
             self.parent.reset_add_button()
 
 
-        def pack(self, before: tk.CTkButton | None = None):
+        def pack(self, before: tk.CTkButton | None = None) -> None:
             self.frame.pack(before=before, padx=8, pady=8)
             self.butt_icon.pack(side="left", padx=8, pady=8, fill="both")
             self.butt_del.pack(side="right", padx=8, pady=8)
@@ -94,7 +100,7 @@ class GameMenu(Scene):
             self.combo_dif.pack(side="top", after=self.label_name, anchor="nw", padx=8, pady=8)
 
 
-    def __init__(self, app: tk.CTk):
+    def __init__(self, app: tk.CTk) -> None:
         super().__init__(app)
         self.MAX_PLAYERS = 4
         self.players: list[GameMenu.Slot] = []
@@ -121,27 +127,27 @@ class GameMenu(Scene):
         self.create_slot()
 
     
-    def create_slot(self, isAI: bool = True):
+    def create_slot(self, isAI: bool = True) -> None:
         self.display()        
         self.players.append(GameMenu.Slot(self, isAI))
         self.players[-1].pack(before=self.butt_add)
         self.reset_add_button()
 
     
-    def reset_add_button(self):
+    def reset_add_button(self) -> None:
         if len(self.players) >= self.MAX_PLAYERS:
             self.butt_add._state = "disabled"
         else:
             self.butt_add._state = "normal"
 
 
-    def create_game(self):
+    def create_game(self) -> None:
         game = Game([slot.player for slot in self.players])
         game_scene = GameScene(self._app, game)
         game_scene.display()
 
 
-    def display(self):
+    def display(self) -> None:
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         self.label.pack(padx=8, pady=8)
@@ -165,7 +171,7 @@ class GameMenu(Scene):
 
 class SettingsMenu(Scene):
     
-    def __init__(self, app: tk.CTk):
+    def __init__(self, app: tk.CTk) -> None:
         super().__init__(app)
         self.main_frame = tk.CTkFrame(app)
     
@@ -194,12 +200,12 @@ class SettingsMenu(Scene):
         self.checkbox_toroid.select() if Settings.cfg["toroid_field"] else self.checkbox_toroid.deselect()
 
 
-    def quit_settings_menu(self):
+    def quit_settings_menu(self) -> None:
         Settings.save()
         MainMenu(self._app).display()
         
 
-    def toggle_fullscreen(self):
+    def toggle_fullscreen(self) -> None:
         if Settings.cfg["fullscreen"]:
             self._app.attributes('-fullscreen', False)
             self._app.state("normal")
@@ -212,13 +218,13 @@ class SettingsMenu(Scene):
         Settings.toggle_setting("fullscreen")
 
 
-    def change_resolution(self, res: str):
+    def change_resolution(self, res: str) -> None:
         self.combo_res.set(res)
         Settings.cfg["resolution"] = res
         GUI.center_window(self._app)
 
 
-    def display(self):
+    def display(self) -> None:
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
         
         self.label.pack(padx=8, pady=8)
@@ -237,49 +243,57 @@ class SettingsMenu(Scene):
 
 class GameScene(Scene):
 
-    def __init__(self, app: tk.CTk, game: Game):
+    def __init__(self, app: tk.CTk, game: Game) -> None:
         super().__init__(app)
         self.game = game
-        GUI.core.send(self.game)
+        GUI.core_conn.send(self.game)
 
         self.main_frame = tk.CTkFrame(app)
         self.field_frame = tk.CTkFrame(self.main_frame)
         self.left_frame = tk.CTkFrame(self.main_frame)
         self.right_frame = tk.CTkFrame(self.main_frame)
         self.butt_back = tk.CTkButton(self.left_frame, height=40, text="Главное меню", hover_color="darkred", command=self.quit_game)
-        self.butt_next_turn = tk.CTkButton(self.right_frame, height=40, text="Следующий ход", command=lambda: GUI.core.send('resume'))
+        self.butt_next_turn = tk.CTkButton(self.right_frame, height=40, text="Следующий ход", command=lambda: GUI.core_conn.send('resume'))
 
         self.field: list[list[tk.CTkButton]] = []
         for row in range(16):
             line = []
             for col in range(16):
-                line.append(tk.CTkButton(self.field_frame, text="", text_color="black", width=32, height=32, command=lambda r=row, c=col: self.cell_pressed(r, c)))
+                line.append(tk.CTkButton(self.field_frame, 
+                                         text="", 
+                                         text_color="black", 
+                                         font=('Segoe UI Black', 20), 
+                                         width=32, 
+                                         height=32, 
+                                         command=lambda r=row, c=col: self.cell_pressed(r, c)))
             self.field.append(line)
         
-        GUI.core.send('start')
+        GUI.events.on_cell_insert += self.redraw_cell # type: ignore
+        GUI.core_conn.send('start')
 
 
-    def quit_game(self):
-        GUI.core.send('pause')
+    def quit_game(self) -> None:
+        GUI.core_conn.send('pause')
+        GUI.events.on_cell_insert -= self.redraw_cell # type: ignore
         MainMenu(self._app).display()
 
 
-    def cell_pressed(self, r: int, c: int):
+    def cell_pressed(self, r: int, c: int) -> None:
         print(f"user pressed ({r}, {c}) cell")
 
 
-    def redraw_text(self, coords: tuple[int, int]):
+    def redraw_text(self, coords: tuple[int, int]) -> None:
         row, col = coords
         cell = self.game.field.cells[row][col]
         self.field[row][col].configure(text=cell.get_content())
         self._app.update()
 
 
-    def redraw_cell(self, coords: tuple[int, int], text: str):
-        self.field[coords[0]][coords[1]].configure(text=text)
+    def redraw_cell(self, data: tuple[int, int, str]) -> None:
+        self.field[data[0]][data[1]].configure(text=data[2].upper())
 
                 
-    def display(self):
+    def display(self) -> None:
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
         self.left_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
         self.field_frame.pack(side="left", fill="y", expand=True, ipadx=4, ipady=4, padx=8, pady=8)
@@ -313,7 +327,8 @@ class GameScene(Scene):
 
 class GUI:
 
-    core: PipeConnection
+    core_conn: PipeConnection
+    events: CoreEvents
 
 
     def __init__(self, connection: PipeConnection) -> None:
@@ -323,8 +338,8 @@ class GUI:
         tk.set_appearance_mode("dark")
         tk.set_default_color_theme("green")
 
-        self._conn = connection
-        GUI.core = connection
+        GUI.core_conn = connection
+        GUI.events = CoreEvents()
 
         self._app = tk.CTk()
         self._app.protocol("WM_DELETE_WINDOW", self.quit)
@@ -341,9 +356,32 @@ class GUI:
 
 
     def listener(self) -> None:
+        if Settings.cfg['verbose'] is True:
+            print('GUI listener thread ON')
         while self._on:
-            if self._conn.poll():
-                data = self._conn.recv()
+            if GUI.core_conn.poll():
+                data = GUI.core_conn.recv()
+
+                if Settings.cfg['verbose']:
+                    print(f'GUI has recieved a command: {data}')
+
+                if isinstance(data, Game):
+                    self._game = data
+
+                elif isinstance(data, tuple):
+                    if isinstance(data[0], str):
+                        match data[0]:
+                            case 'insert':
+                                GUI.events.on_cell_insert(data[1:])
+                            case 'turn':
+                                ...
+                            case _:
+                                print(f'unknown command: {data}')
+
+                    else:
+                        raise ValueError('GUI has recieved some unknown data')
+                else:
+                    raise ValueError('GUI has recieved some unknown data')
 
 
     def toggle_fullscreen(self) -> None:
@@ -357,7 +395,7 @@ class GUI:
 
 
     def quit(self) -> None:
-        self._conn.send('finish')
+        GUI.core_conn.send('finish')
         self._on = False
         self._app.destroy()
 

@@ -48,6 +48,7 @@ class Content:
     quantity: dict
     definition: dict
     textures: dict
+    fonts: dict
 
 
     @staticmethod
@@ -57,6 +58,7 @@ class Content:
         Content.quantity = dict()
         Content.definition = dict()
         Content.textures = dict()
+        Content.fonts = dict()
 
         if verbose:
             print("Loading characters...", end="")
