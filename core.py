@@ -324,6 +324,7 @@ class Player:
         self.placed_words.append((word, value))
         Game.placed_words.add(word)
         self.score += value
+        Core.gui_conn.send(('place', word, value, self.name, self.score))
         # print(f"Он выкладывает слово {word} за {value} очков")
 
 
@@ -439,6 +440,13 @@ class Game:
         self.active_player.replenish_pool(self.pack)
 
     
+    def get_player(self, name: str) -> Player:
+        for player in self.players:
+            if player.name == name:
+                return player
+        raise ValueError(f'There is no player named {name}')
+    
+    
     def get_scorelist(self) -> list[tuple[str, int]]:
         return [(player.name, player.score) for player in self.players]
 
@@ -507,6 +515,11 @@ class Core:
                             if not self._game_thread.is_alive():
                                 self._game_thread.start()
 
+                        case 'shuffle':
+                            if self._game is None:
+                                raise ValueError('shuffle command recieved but there is still no game')
+                            # TODO event
+                        
                         case 'finish':
                             self._finished = True
                             break

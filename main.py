@@ -1,11 +1,12 @@
 import customtkinter as tk
 from core import *
 from events import Events
+from CTkTable import CTkTable, CTkScrollableTable
 
 
 class CoreEvents(Events):
 
-    __events__ = ('on_cell_insert')
+    __events__ = ('on_cell_insert', 'on_new_word')
 
 
 class Scene:
@@ -248,13 +249,35 @@ class GameScene(Scene):
         self.game = game
         GUI.core_conn.send(self.game)
 
-        self.main_frame = tk.CTkFrame(app)
-        self.field_frame = tk.CTkFrame(self.main_frame)
-        self.left_frame = tk.CTkFrame(self.main_frame)
-        self.right_frame = tk.CTkFrame(self.main_frame)
-        self.butt_back = tk.CTkButton(self.left_frame, height=40, text="Главное меню", hover_color="darkred", command=self.quit_game)
-        self.butt_next_turn = tk.CTkButton(self.right_frame, height=40, text="Следующий ход", command=lambda: GUI.core_conn.send('resume'))
+        self.main_frame = tk.CTkFrame(app, corner_radius=0)
+        self.left_frame = tk.CTkFrame(self.main_frame, corner_radius=0)
+        self.field_frame = tk.CTkFrame(self.main_frame, corner_radius=0)
+        self.right_frame = tk.CTkFrame(self.main_frame, corner_radius=0)
+        
+        # left frame
+        self.butt_back = tk.CTkButton(self.left_frame, height=40, text="Выйти в главное меню", hover_color="darkred", command=self.quit_game)
+        
+        self.scoreboard_label = tk.CTkLabel(self.left_frame, text='Таблица очков')
+        table = game.get_scorelist()
+        self.scoreboard_table = CTkTable(self.left_frame, values=table)
+        self.scoreboard_table.edit_column(column=1, width=60)
+        
+        self.history_label = tk.CTkLabel(self.left_frame, text='История', width=400)
+        history = [['Слово', 'Цена', 'Игрок']]
+        self.history_length = 1
+        self.history_table = CTkTable(self.left_frame, values=history)
+        self.history_table.edit_column(column=1, width=60)
+        
+        self.cur_player_label = tk.CTkLabel(self.left_frame, text=f'Ходит {self.game.active_player.name}')
+        self.turn_progressbar = tk.CTkProgressBar(self.left_frame)
+        self.turn_progressbar.set(0)
+        
+        # right frame
+        self.desk_label = tk.CTkLabel(self.right_frame, text='Ваши буквы')
+        self.butt_shuffle = tk.CTkButton(self.right_frame, width=20, text="Заменить", command=lambda: GUI.core_conn.send('shuffle'))
+        self.butt_next_turn = tk.CTkButton(self.right_frame, height=40, width=400, text="Следующий ход", command=lambda: GUI.core_conn.send('resume'))
 
+        # field frame
         self.field: list[list[tk.CTkButton]] = []
         for row in range(16):
             line = []
@@ -263,13 +286,27 @@ class GameScene(Scene):
                                          text="", 
                                          text_color="black", 
                                          font=('Segoe UI Black', 20), 
-                                         width=32, 
-                                         height=32, 
+                                         width=48, 
+                                         height=48, 
                                          command=lambda r=row, c=col: self.cell_pressed(r, c)))
             self.field.append(line)
         
         GUI.events.on_cell_insert += self.redraw_cell # type: ignore
+        GUI.events.on_new_word += self.add_word_to_history # type: ignore
         GUI.core_conn.send('start')
+
+
+    def add_word_to_history(self, data: tuple[str, int, str, int]) -> None:
+        word, value, name, score = data
+        self.history_table.add_row(values=[word, value, name], index=1)
+        self.game.get_player(name).score = score
+        self.refresh_scoreboard()
+
+
+    def refresh_scoreboard(self) -> None:
+        table = self.game.get_scorelist()
+        table.sort(key=lambda row: row[1], reverse=True)
+        self.scoreboard_table.configure(values=table)
 
 
     def quit_game(self) -> None:
@@ -294,15 +331,27 @@ class GameScene(Scene):
 
                 
     def display(self) -> None:
-        self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
-        self.left_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
-        self.field_frame.pack(side="left", fill="y", expand=True, ipadx=4, ipady=4, padx=8, pady=8)
-        self.right_frame.pack(side="left", fill="y", expand=True, padx=8, pady=8)
+        self.main_frame.place(relx=0.5, rely=0.5, relwidth=1, relheight=1, anchor="center")
+        
+        self.left_frame.pack(side="left", anchor='w', fill="y", expand=True, padx=0, pady=0)
+        self.field_frame.pack(side="left", expand=True, padx=0, pady=0)
+        self.right_frame.pack(side="left", anchor='e', fill="y", expand=True, padx=0, pady=0)
+        
+        # left frame
+        self.butt_back.pack(side="top", anchor='n', fill="x", padx=8, pady=8)
+        self.scoreboard_label.pack(side="top", anchor='n', fill="x", padx=8, pady=8)
+        self.scoreboard_table.pack(side="top", anchor='n', fill="x", padx=8, pady=8)
+        self.history_label.pack(side="top", anchor='n', fill="x", padx=8, pady=8)
+        self.history_table.pack(side="top", anchor='n', fill="both", padx=8, pady=8)
+        self.turn_progressbar.pack(side="bottom", anchor='s', fill="x", padx=8, pady=8)
+        self.cur_player_label.pack(side="bottom", anchor='s', fill="x", padx=8, pady=8)
 
-        self.butt_back.pack(side="bottom", padx=8, pady=8)
+        # right frame
+        self.butt_next_turn.pack(side="bottom", anchor='s', fill="x", padx=8, pady=8)
+        self.butt_shuffle.pack(side="right", anchor='n', fill="x", padx=8, pady=8)
+        self.desk_label.pack(side="right", anchor='n', fill="x", expand=True, padx=8, pady=8)
 
-        self.butt_next_turn.pack(side="bottom", padx=8, pady=8)
-
+        # field frame
         fg_colors = {
             "white" : "burlywood1",
             "green" : "springgreen1",
@@ -349,8 +398,10 @@ class GUI:
 
         self._app.title("Эрудит")
         self._app.after(0, func=self.toggle_fullscreen)
+        
         self._listener.start()
-        MainMenu(self._app).display()
+        GameScene(self._app, Game([AI("Володька", criteria="length"), AI("Санёк")])).display()
+        # MainMenu(self._app).display()
 
         self._app.mainloop()
 
@@ -375,6 +426,9 @@ class GUI:
                                 GUI.events.on_cell_insert(data[1:])
                             case 'turn':
                                 ...
+                            case 'place':
+                                GUI.events.on_new_word(data[1:])  
+                            
                             case _:
                                 print(f'unknown command: {data}')
 
@@ -388,10 +442,12 @@ class GUI:
         if Settings.cfg["fullscreen"]:
             self._app.state("zoomed")
             self._app.attributes('-fullscreen', True)
+            self._app.resizable(False, False)
         else:
             self._app.attributes('-fullscreen', False)
             self._app.state("normal")
             GUI.center_window(self._app)
+            self._app.resizable(True, True)
 
 
     def quit(self) -> None:
@@ -417,7 +473,6 @@ class GUI:
         y_cordinate = int((screen_height/2) - (window_height/2))
 
         app.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
-        app.resizable(False, False)
 
 
 def main() -> None:

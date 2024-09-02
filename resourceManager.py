@@ -90,3 +90,8 @@ class Content:
                                         size=(64, 64))})
         if verbose:
             print("OK")
+
+
+if __name__ == '__main__':
+    Settings.load(True)
+    Content.load(True)
