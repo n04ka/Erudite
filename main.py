@@ -1,32 +1,38 @@
 import customtkinter as tk
-import resourceManager
 from core import *
-from PIL import Image
-import os
+from events import Events
+from CTkTable import CTkTable, CTkScrollableTable
+
+
+class CoreEvents(Events):
+
+    __events__ = ('on_cell_insert', 'on_new_word')
 
 
 class Scene:
 
-    def __init__(self):
-        GUI.clear_window()
+    def __init__(self, app: tk.CTk) -> None:
+        self._app = app
+        GUI.clear_window(app)
 
 
-    def display(self):
+    def display(self) -> None:
         pass
 
 
 class MainMenu(Scene):
     
-    def __init__(self):
-        super().__init__()
-        self.main_frame = tk.CTkFrame(GUI.app)
+    def __init__(self, app: tk.CTk) -> None:
+        super().__init__(app)
+        self.main_frame = tk.CTkFrame(self._app)
         self.label = tk.CTkLabel(self.main_frame, text="Главное меню")
         self.butt_resume = tk.CTkButton(self.main_frame, height=40, text="Продолжить", state="disabled")
-        self.butt_start = tk.CTkButton(self.main_frame, height=40, text="Начать", command=lambda: GUI.switch_to(GameMenu()))
-        self.butt_set = tk.CTkButton(self.main_frame, height=40, text="Настройки", command=lambda: GUI.switch_to(SettingsMenu()))
-        self.butt_exit = tk.CTkButton(self.main_frame, height=40, text="Выйти", hover_color="darkred", command=GUI.quit)
+        self.butt_start = tk.CTkButton(self.main_frame, height=40, text="Начать", command=lambda: GameMenu(app).display())
+        self.butt_set = tk.CTkButton(self.main_frame, height=40, text="Настройки", command=lambda: SettingsMenu(app).display())
+        self.butt_exit = tk.CTkButton(self.main_frame, height=40, text="Выйти", hover_color="darkred", command=self._app.quit)
 
-    def display(self):
+
+    def display(self) -> None:
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
         self.label.pack(anchor="n", padx=8, pady=8)
         self.butt_resume.pack(padx=8, pady=8)
@@ -39,45 +45,68 @@ class GameMenu(Scene):
 
     class Slot:
 
-        def __init__(self, parent, isAI) -> None:
+        def __init__(self, parent, isAI: bool) -> None:
             self.parent = parent
-            self.player = Player(name="Новый игрок", isAI=isAI)
+            self.player = AI(name="Новый игрок") if isAI else Player(name="Новый игрок")
+            
             self.frame = tk.CTkFrame(parent.main_frame, corner_radius=0)
             self.butt_icon = tk.CTkButton(self.frame, width=64, image=self.get_icon(), height=64, text="", command=self.toggle_ai)
             self.label_name = tk.CTkLabel(self.frame, width=300, text=self.player.name, anchor="w", justify="left")
+            self.combo_dif = tk.CTkComboBox(self.frame, height=16, values=["Лёгкий", "Средний", "Сложный", "Маэстро"], command=self.change_ai_difficulty)
+            self.refresh_combo_dif()
+            self.combo_dif._state = "readonly" if self.player.isAI else "disabled"
             self.butt_del = tk.CTkButton(self.frame, width=16, height=16, text="X", hover_color="darkred", command=self.delete_slot)
 
 
-        def get_icon(self):
+        def change_ai_difficulty(self, res: str) -> None:
+            try:
+                self.player.AI_difficulty = res # type: ignore
+            except:
+                raise RuntimeError("Trying to alter human's difficulty")
+
+
+        def refresh_combo_dif(self) -> None:
+            if self.player.isAI:
+                self.combo_dif._state = "readonly"
+                self.combo_dif.set("Средний")
+            else:
+                self.combo_dif.set("Человек")
+                self.combo_dif._state = "disabled"
+
+
+        def get_icon(self) -> CTkImage:
             if self.player.isAI:
                 return Content.textures["ai-icon"]
             return Content.textures["human-icon"]
         
 
-        def toggle_ai(self):
+        def toggle_ai(self) -> None:
             self.player.isAI = not self.player.isAI
+            self.player = AI(name="Новый игрок") if self.player.isAI else Player(name="Новый игрок")
             self.butt_icon.configure(image=self.get_icon())
+            self.refresh_combo_dif()
 
 
-        def delete_slot(self):
+        def delete_slot(self) -> None:
             self.frame.destroy()
             self.parent.players.remove(self)
             self.parent.reset_add_button()
 
 
-        def pack(self, before=None):
+        def pack(self, before: tk.CTkButton | None = None) -> None:
             self.frame.pack(before=before, padx=8, pady=8)
-            self.butt_icon.pack(side="left", padx=8, pady=8)
-            self.label_name.pack(side="left", anchor="nw", padx=8, pady=8)
+            self.butt_icon.pack(side="left", padx=8, pady=8, fill="both")
             self.butt_del.pack(side="right", padx=8, pady=8)
+            self.label_name.pack(side="top", anchor="nw", padx=8, pady=8)
+            self.combo_dif.pack(side="top", after=self.label_name, anchor="nw", padx=8, pady=8)
 
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, app: tk.CTk) -> None:
+        super().__init__(app)
         self.MAX_PLAYERS = 4
         self.players: list[GameMenu.Slot] = []
 
-        self.main_frame = tk.CTkFrame(GUI.app)
+        self.main_frame = tk.CTkFrame(self._app)
 
         #main frame
         self.label = tk.CTkLabel(self.main_frame, text="Создание игры")
@@ -86,8 +115,8 @@ class GameMenu(Scene):
         self.buttons_frame = tk.CTkFrame(self.main_frame)
 
         #buttons frame
-        self.butt_back = tk.CTkButton(self.buttons_frame, height=40, text="Назад", hover_color="darkred", command=lambda: GUI.switch_to(MainMenu()))
-        self.butt_start = tk.CTkButton(self.buttons_frame, height=40, text="Начать", command=lambda: GUI.switch_to(GameScene()))
+        self.butt_back = tk.CTkButton(self.buttons_frame, height=40, text="Назад", hover_color="darkred", command=lambda: MainMenu(app).display())
+        self.butt_start = tk.CTkButton(self.buttons_frame, height=40, text="Начать", command=self.create_game)
 
         #slot frame
         self.label_slot = tk.CTkLabel(self.slot_frame, text="Игроки")
@@ -99,27 +128,33 @@ class GameMenu(Scene):
         self.create_slot()
 
     
-    def create_slot(self, isAI: bool = True):
+    def create_slot(self, isAI: bool = True) -> None:
         self.display()        
         self.players.append(GameMenu.Slot(self, isAI))
         self.players[-1].pack(before=self.butt_add)
         self.reset_add_button()
 
     
-    def reset_add_button(self):
+    def reset_add_button(self) -> None:
         if len(self.players) >= self.MAX_PLAYERS:
             self.butt_add._state = "disabled"
         else:
             self.butt_add._state = "normal"
 
 
-    def display(self):
+    def create_game(self) -> None:
+        game = Game([slot.player for slot in self.players])
+        game_scene = GameScene(self._app, game)
+        game_scene.display()
+
+
+    def display(self) -> None:
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         self.label.pack(padx=8, pady=8)
 
         #slot frame
-        self.slot_frame.pack(side="left", padx=8, pady=8)
+        self.slot_frame.pack(side="left", expand=True, fill="both", padx=8, pady=8)
         self.label_slot.pack(padx=8, pady=8)
         self.butt_add.pack(padx=8, pady=8)
         for slot in self.players:
@@ -137,9 +172,9 @@ class GameMenu(Scene):
 
 class SettingsMenu(Scene):
     
-    def __init__(self):
-        super().__init__()
-        self.main_frame = tk.CTkFrame(GUI.app)
+    def __init__(self, app: tk.CTk) -> None:
+        super().__init__(app)
+        self.main_frame = tk.CTkFrame(app)
     
         #main frame
         self.label = tk.CTkLabel(self.main_frame, text="Настройки")
@@ -149,7 +184,7 @@ class SettingsMenu(Scene):
 
         #resolution frame
         self.label_res = tk.CTkLabel(self.resolution_frame, text="Разрешение")
-        available_res = ["700x700", "1920x1080"]
+        available_res = ["1100x700", "1920x1080"]
         self.combo_res = tk.CTkComboBox(self.resolution_frame, height=24, values=available_res, command=self.change_resolution)
         self.combo_res.set(Settings.cfg["resolution"])
         self.combo_res._state = "disabled" if Settings.cfg["fullscreen"] else "readonly"
@@ -166,29 +201,31 @@ class SettingsMenu(Scene):
         self.checkbox_toroid.select() if Settings.cfg["toroid_field"] else self.checkbox_toroid.deselect()
 
 
-    def quit_settings_menu(self):
+    def quit_settings_menu(self) -> None:
         Settings.save()
-        GUI.switch_to(MainMenu())
+        MainMenu(self._app).display()
         
 
-    def toggle_fullscreen(self):
+    def toggle_fullscreen(self) -> None:
         if Settings.cfg["fullscreen"]:
-            GUI.app.attributes('-fullscreen', False)
-            GUI.center_window()
+            self._app.attributes('-fullscreen', False)
+            self._app.state("normal")
+            GUI.center_window(self._app)
             self.combo_res._state = "readonly"
         else:
-            GUI.app.attributes('-fullscreen', True)
+            self._app.state("zoomed")
+            self._app.attributes('-fullscreen', True)
             self.combo_res._state = "disabled"
         Settings.toggle_setting("fullscreen")
 
 
-    def change_resolution(self, res: str):
+    def change_resolution(self, res: str) -> None:
         self.combo_res.set(res)
         Settings.cfg["resolution"] = res
-        GUI.center_window()
+        GUI.center_window(self._app)
 
 
-    def display(self):
+    def display(self) -> None:
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
         
         self.label.pack(padx=8, pady=8)
@@ -206,24 +243,115 @@ class SettingsMenu(Scene):
 
 
 class GameScene(Scene):
-    
-    def __init__(self):
-        super().__init__()
-        self.field_frame = tk.CTkFrame(GUI.app)
+
+    def __init__(self, app: tk.CTk, game: Game) -> None:
+        super().__init__(app)
+        self.game = game
+        GUI.core_conn.send(self.game)
+
+        self.main_frame = tk.CTkFrame(app, corner_radius=0)
+        self.left_frame = tk.CTkFrame(self.main_frame, corner_radius=0)
+        self.field_frame = tk.CTkFrame(self.main_frame, corner_radius=0)
+        self.right_frame = tk.CTkFrame(self.main_frame, corner_radius=0)
+        
+        # left frame
+        self.butt_back = tk.CTkButton(self.left_frame, height=40, text="Выйти в главное меню", hover_color="darkred", command=self.quit_game)
+        
+        self.scoreboard_label = tk.CTkLabel(self.left_frame, text='Таблица очков')
+        table = game.get_scorelist()
+        self.scoreboard_table = CTkTable(self.left_frame, values=table)
+        self.scoreboard_table.edit_column(column=1, width=60)
+        
+        self.history_label = tk.CTkLabel(self.left_frame, text='История', width=400)
+        history = [['Слово', 'Цена', 'Игрок']]
+        self.history_length = 1
+        self.history_table = CTkTable(self.left_frame, values=history)
+        self.history_table.edit_column(column=1, width=60)
+        
+        self.cur_player_label = tk.CTkLabel(self.left_frame, text=f'Ходит {self.game.active_player.name}')
+        self.turn_progressbar = tk.CTkProgressBar(self.left_frame)
+        self.turn_progressbar.set(0)
+        
+        # right frame
+        self.desk_label = tk.CTkLabel(self.right_frame, text='Ваши буквы')
+        self.butt_shuffle = tk.CTkButton(self.right_frame, width=20, text="Заменить", command=lambda: GUI.core_conn.send('shuffle'))
+        self.butt_next_turn = tk.CTkButton(self.right_frame, height=40, width=400, text="Следующий ход", command=lambda: GUI.core_conn.send('resume'))
+
+        # field frame
         self.field: list[list[tk.CTkButton]] = []
         for row in range(16):
             line = []
             for col in range(16):
-                line.append(tk.CTkButton(self.field_frame, text="", text_color="black", width=32, height=32, command=lambda r=row, c=col: self.cell_pressed(r, c)))
+                line.append(tk.CTkButton(self.field_frame, 
+                                         text="", 
+                                         text_color="black", 
+                                         font=('Segoe UI Black', 20), 
+                                         width=48, 
+                                         height=48, 
+                                         command=lambda r=row, c=col: self.cell_pressed(r, c)))
             self.field.append(line)
+        
+        GUI.events.on_cell_insert += self.redraw_cell # type: ignore
+        GUI.events.on_new_word += self.add_word_to_history # type: ignore
+        GUI.core_conn.send('start')
 
 
-    def cell_pressed(self, r: int, c: int):
-        print(r, c)
+    def add_word_to_history(self, data: tuple[str, int, str, int]) -> None:
+        word, value, name, score = data
+        self.history_table.add_row(values=[word, value, name], index=1)
+        self.game.get_player(name).score = score
+        self.refresh_scoreboard()
+
+
+    def refresh_scoreboard(self) -> None:
+        table = self.game.get_scorelist()
+        table.sort(key=lambda row: row[1], reverse=True)
+        self.scoreboard_table.configure(values=table)
+
+
+    def quit_game(self) -> None:
+        GUI.core_conn.send('pause')
+        GUI.events.on_cell_insert -= self.redraw_cell # type: ignore
+        MainMenu(self._app).display()
+
+
+    def cell_pressed(self, r: int, c: int) -> None:
+        print(f"user pressed ({r}, {c}) cell")
+
+
+    def redraw_text(self, coords: tuple[int, int]) -> None:
+        row, col = coords
+        cell = self.game.field.cells[row][col]
+        self.field[row][col].configure(text=cell.get_content())
+        self._app.update()
+
+
+    def redraw_cell(self, data: tuple[int, int, str]) -> None:
+        self.field[data[0]][data[1]].configure(text=data[2].upper())
 
                 
-    def display(self):
-        self.field_frame.place(relx=0.5, rely=0.5, anchor="center")
+    def display(self) -> None:
+        self.main_frame.place(relx=0.5, rely=0.5, relwidth=1, relheight=1, anchor="center")
+        
+        self.left_frame.pack(side="left", anchor='w', fill="y", expand=True, padx=0, pady=0)
+        self.field_frame.pack(side="left", expand=True, padx=0, pady=0)
+        self.right_frame.pack(side="left", anchor='e', fill="y", expand=True, padx=0, pady=0)
+        
+        # left frame
+        self.butt_back.pack(side="top", anchor='n', fill="x", padx=8, pady=8)
+        self.scoreboard_label.pack(side="top", anchor='n', fill="x", padx=8, pady=8)
+        self.scoreboard_table.pack(side="top", anchor='n', fill="x", padx=8, pady=8)
+        self.history_label.pack(side="top", anchor='n', fill="x", padx=8, pady=8)
+        self.history_table.pack(side="top", anchor='n', fill="both", padx=8, pady=8)
+        self.turn_progressbar.pack(side="bottom", anchor='s', fill="x", padx=8, pady=8)
+        self.cur_player_label.pack(side="bottom", anchor='s', fill="x", padx=8, pady=8)
+
+        # right frame
+        self.butt_next_turn.pack(side="bottom", anchor='s', fill="x", padx=8, pady=8)
+        self.butt_shuffle.pack(side="right", anchor='n', fill="x", padx=8, pady=8)
+        self.desk_label.pack(side="right", anchor='n', fill="x", expand=True, padx=8, pady=8)
+
+        # field frame
         fg_colors = {
             "white" : "burlywood1",
             "green" : "springgreen1",
@@ -240,72 +368,137 @@ class GameScene(Scene):
             "yellow" : "yellow4",
             "brown" : "sienna4"
         }
-        for row, col in Field.get_coords_generator():
-            cell = Field.cells[row][col]
+        for row, col in self.game.field.get_coords_generator():
+            cell = self.game.field.cells[row][col]
             self.field[row][col].configure(fg_color=fg_colors[cell.color], hover_color=hover_colors[cell.color])
             self.field[row][col].grid(column=col, row=row, padx=4, pady=4)
 
 
 class GUI:
 
-    app: tk.CTk
-    current_scene: Scene
+    core_conn: PipeConnection
+    events: CoreEvents
 
 
-    @staticmethod
-    def begin():
+    def __init__(self, connection: PipeConnection) -> None:
+        
+        Settings.load(True)
+        Content.load(Settings.cfg["verbose"])
         tk.set_appearance_mode("dark")
         tk.set_default_color_theme("green")
-        GUI.app = tk.CTk()
-        GUI.app.title("Эрудит")
 
+        GUI.core_conn = connection
+        GUI.events = CoreEvents()
+
+        self._app = tk.CTk()
+        self._app.protocol("WM_DELETE_WINDOW", self.quit)
+
+        self._listener = Thread(target=self.listener, name='gui listener', daemon=True)
+        self._on = True
+
+        self._app.title("Эрудит")
+        self._app.after(0, func=self.toggle_fullscreen)
+        
+        self._listener.start()
+        GameScene(self._app, Game([AI("Володька", criteria="length"), AI("Санёк")])).display()
+        # MainMenu(self._app).display()
+
+        self._app.mainloop()
+
+
+    def listener(self) -> None:
+        if Settings.cfg['verbose'] is True:
+            print('GUI listener thread ON')
+        while self._on:
+            if GUI.core_conn.poll():
+                data = GUI.core_conn.recv()
+
+                if Settings.cfg['verbose']:
+                    print(f'GUI has recieved a command: {data}')
+
+                if isinstance(data, Game):
+                    self._game = data
+
+                elif isinstance(data, tuple):
+                    if isinstance(data[0], str):
+                        match data[0]:
+                            case 'insert':
+                                GUI.events.on_cell_insert(data[1:])
+                            case 'turn':
+                                ...
+                            case 'place':
+                                GUI.events.on_new_word(data[1:])  
+                            
+                            case _:
+                                print(f'unknown command: {data}')
+
+                    else:
+                        raise ValueError('GUI has recieved some unknown data')
+                else:
+                    raise ValueError('GUI has recieved some unknown data')
+
+
+    def toggle_fullscreen(self) -> None:
         if Settings.cfg["fullscreen"]:
-            GUI.app.attributes('-fullscreen', True)
+            self._app.state("zoomed")
+            self._app.attributes('-fullscreen', True)
+            self._app.resizable(False, False)
         else:
-            GUI.app.attributes('-fullscreen', False)
+            self._app.attributes('-fullscreen', False)
+            self._app.state("normal")
+            GUI.center_window(self._app)
+            self._app.resizable(True, True)
 
-        GUI.center_window()
 
-        GUI.switch_to(MainMenu())
-        GUI.app.mainloop()
+    def quit(self) -> None:
+        GUI.core_conn.send('finish')
+        self._on = False
+        self._app.destroy()
 
 
     @staticmethod
-    def clear_window():
-        for widget in GUI.app.winfo_children():
+    def clear_window(app: tk.CTk) -> None:
+        for widget in app.winfo_children():
             widget.destroy()
 
 
     @staticmethod
-    def center_window():
+    def center_window(app: tk.CTk) -> None:
+
         window_width, window_height = map(int, Settings.cfg["resolution"].split("x"))
-        screen_width = GUI.app.winfo_screenwidth()
-        screen_height = GUI.app.winfo_screenheight()
+        screen_width = app.winfo_screenwidth()
+        screen_height = app.winfo_screenheight()
 
         x_cordinate = int((screen_width/2) - (window_width/2))
         y_cordinate = int((screen_height/2) - (window_height/2))
 
-        GUI.app.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
-        GUI.app.resizable(False, False)
+        app.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
 
 
-    @staticmethod
-    def switch_to(scene: Scene):
-        GUI.current_scene = scene
-        GUI.current_scene.display()
-
-    
-    @staticmethod
-    def quit():
-        GUI.clear_window()
-        exit()
-
-
-def main():
+def main() -> None:
     Settings.load(True)
-    Content.load(Settings.cfg["verbose"])
-    Field.load(Settings.cfg["verbose"])
-    GUI().begin()
+    conn1, conn2 = Pipe()
+    gui = Process(target=GUI, name='gui process', args=[conn1])
+    core = Process(target=Core, name='core process', args=[conn2], daemon=True)
+    gui.start()
+    if Settings.cfg['verbose']:
+        print('gui ON')
+
+    core.start()
+    if Settings.cfg['verbose']:
+        print('core ON')
+
+    gui.join()
+    if Settings.cfg['verbose']:
+        print('gui OFF')
+
+    if core.is_alive():
+        core.terminate()
+        if Settings.cfg['verbose']:
+            print('core terminated')
+    else:
+        if Settings.cfg['verbose']:
+            print('core OFF')
 
 
 if __name__ == '__main__':
